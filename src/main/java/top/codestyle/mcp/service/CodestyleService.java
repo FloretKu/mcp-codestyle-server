@@ -55,7 +55,7 @@ public class CodestyleService {
 
                 // 远程返回空结果，自动fallback到本地Lucene检索
                 if (remoteResults.isEmpty()) {
-                    return searchLocalFallback(templateKeyword);
+                    return searchLocalFallback(templateKeyword, true);
                 }
 
                 // 单个结果：精确匹配，缓存到本地并返回目录树
@@ -79,7 +79,7 @@ public class CodestyleService {
             }
 
             // 本地Lucene全文检索模式
-            return searchLocalFallback(templateKeyword);
+            return searchLocalFallback(templateKeyword, false);
         } catch (Exception e) {
             return "模板搜索失败: " + e.getMessage();
         }
@@ -88,10 +88,13 @@ public class CodestyleService {
     /**
      * 本地Lucene检索（兜底策略）
      */
-    private String searchLocalFallback(String templateKeyword) {
+    private String searchLocalFallback(String templateKeyword, boolean fromRemoteFallback) {
         List<LuceneIndexService.SearchResult> searchResults = luceneIndexService.fetchLocalMetaConfig(templateKeyword);
 
         if (searchResults.isEmpty()) {
+            if (fromRemoteFallback) {
+                return promptService.buildRemoteUnavailable(templateKeyword);
+            }
             return promptService.buildLocalNotFound(repositoryConfig.getRepositoryDir(), templateKeyword);
         }
 

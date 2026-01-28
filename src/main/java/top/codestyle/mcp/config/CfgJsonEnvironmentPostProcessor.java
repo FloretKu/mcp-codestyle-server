@@ -8,29 +8,45 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.StandardEnvironment;
 
 import java.io.File;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor {
 
     private static final String CFG_JSON = "cfg.json";
+    private static final String PROJECT_CFG_DIR = ".codestyle";
     private static final String PROPERTY_SOURCE_NAME = "cfgJsonPropertySource";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        File cfgFile = findCfgJson();
-        if (cfgFile == null || !cfgFile.exists()) {
-            return;
+        Map<String, Object> properties = new HashMap<>();
+
+        File globalCfg = findGlobalCfgJson();
+        if (globalCfg != null && globalCfg.exists()) {
+            loadConfig(globalCfg, properties);
         }
 
+        File projectCfg = findProjectCfgJson();
+        if (projectCfg != null && projectCfg.exists()) {
+            loadConfig(projectCfg, properties);
+        }
+
+        if (!properties.isEmpty()) {
+            MutablePropertySources sources = environment.getPropertySources();
+            if (sources.contains(PROPERTY_SOURCE_NAME)) {
+                sources.remove(PROPERTY_SOURCE_NAME);
+            }
+            MapPropertySource propertySource = new MapPropertySource(PROPERTY_SOURCE_NAME, properties);
+            sources.addFirst(propertySource);
+        }
+    }
+
+    private void loadConfig(File cfgFile, Map<String, Object> properties) {
         try {
             String content = FileUtil.readUtf8String(cfgFile);
             JSONObject json = JSONUtil.parseObj(content);
-            Map<String, Object> properties = new HashMap<>();
 
             JSONObject repository = json.getJSONObject("repository");
             if (repository != null) {
@@ -66,38 +82,33 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
                     properties.put("repository.api-key", apiKey);
                 }
             }
-
-            if (!properties.isEmpty()) {
-                MutablePropertySources sources = environment.getPropertySources();
-                if (sources.contains(PROPERTY_SOURCE_NAME)) {
-                    sources.remove(PROPERTY_SOURCE_NAME);
-                }
-                MapPropertySource propertySource = new MapPropertySource(PROPERTY_SOURCE_NAME, properties);
-                if (sources.contains(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME)) {
-                    sources.addAfter(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, propertySource);
-                } else if (sources.contains(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME)) {
-                    sources.addAfter(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME, propertySource);
-                } else {
-                    sources.addFirst(propertySource);
-                }
-            }
         } catch (Exception e) {
             throw new RuntimeException("cfg.json 解析失败: " + cfgFile.getAbsolutePath(), e);
         }
     }
 
-    private File findCfgJson() {
-        try {
-            String jarPath = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-            File jarFile = new File(jarPath);
-            File jarDir = jarFile.isDirectory() ? jarFile : jarFile.getParentFile();
-            File cfgFile = new File(jarDir, CFG_JSON);
-            if (cfgFile.exists()) {
-                return cfgFile;
+    private File findGlobalCfgJson() {
+        String classpath = System.getProperty("java.class.path");
+        if (classpath != null && classpath.endsWith(".jar")) {
+            File jarFile = new File(classpath);
+            if (jarFile.exists()) {
+                File cfgFile = new File(jarFile.getParentFile(), CFG_JSON);
+                if (cfgFile.exists()) {
+                    return cfgFile;
+                }
             }
-        } catch (URISyntaxException ignored) {
         }
+        return null;
+    }
 
+    private File findProjectCfgJson() {
+        String userDir = System.getProperty("user.dir");
+        if (userDir != null) {
+            File projectCfg = new File(userDir, PROJECT_CFG_DIR + File.separator + CFG_JSON);
+            if (projectCfg.exists()) {
+                return projectCfg;
+            }
+        }
         return null;
     }
 
@@ -105,9 +116,13 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
         if (path == null || path.isEmpty()) {
             return path;
         }
+        if (path.startsWith("~")) {
+            String userHome = System.getProperty("user.home");
+            path = new File(userHome, path.substring(2)).getAbsolutePath();
+        }
         File file = new File(path);
         if (file.isAbsolute()) {
-            return path;
+            return file.getAbsolutePath();
         }
         return new File(baseDir, path).getAbsolutePath();
     }

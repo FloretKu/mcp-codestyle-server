@@ -1,8 +1,8 @@
-远程仓库不可访问,无法获取模板"%{s}"的信息。
+远程仓库不可用，已降级为本地搜索，仍未找到模板"%{s}"。
 
 建议尝试以下模板提示词：
 【后端】CRUD, controller, service, mapper, entity
 【前端】CRUD, index, form, modal
-【通用】bankend, frontend
+【通用】增删改查, 代码生成
 
-请检查模板提示词是否正确，或联系管理员
+请检查网络连接或稍后重试

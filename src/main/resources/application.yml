@@ -1,7 +1,7 @@
 spring:
   application:
     name: mcp-codestyle-server
-  main: # 不启动web服务,并且关闭web启动时候的横幅
+  main:
     web-application-type: none
     banner-mode: off
   ai:
@@ -13,6 +13,10 @@ spring:
         stdio: true
         annotation-scanner:
           enabled: true
+
+logging:
+  level:
+    root: OFF
 # 仓库配置
 repository:
   # 本地基础路径，可通过JVM参数 -Dcache.base-path=自定义路径 覆盖
