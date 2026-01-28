@@ -17,13 +17,13 @@ import org.apache.lucene.store.FSDirectory;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.meta.LocalMetaConfig;
+import top.codestyle.mcp.util.SDKUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -156,26 +156,17 @@ public class LuceneIndexService {
      * @return 路径关键词字符串
      */
     private String extractPathKeywords(LocalMetaConfig meta) {
-        HashSet<String> keywords = new HashSet<>();
+        List<String> paths = new ArrayList<>();
         if (meta.getConfigs() != null) {
             for (var config : meta.getConfigs()) {
                 if (config.getFiles() != null) {
                     for (var file : config.getFiles()) {
-                        String path = file.getFilePath();
-                        if (path != null && !path.isEmpty()) {
-                            // 分割路径: /bankend/src/main → [bankend, src, main]
-                            String[] segments = path.split("[/\\\\]");
-                            for (String seg : segments) {
-                                if (!seg.isEmpty() && !seg.equals(".")) {
-                                    keywords.add(seg);
-                                }
-                            }
-                        }
+                        paths.add(file.getFilePath());
                     }
                 }
             }
         }
-        return String.join(" ", keywords);
+        return SDKUtils.extractPathKeywords(paths);
     }
 
     /**
@@ -253,16 +244,17 @@ public class LuceneIndexService {
      * @return 匹配的模板列表（按相关度排序）
      */
     public List<SearchResult> fetchLocalMetaConfig(String keyword) {
-        // 自动检测并重建索引（如果仓库有更新）
         autoRebuildIndexIfNeeded();
+
+        try {
+            if (!DirectoryReader.indexExists(directory)) {
+                rebuildIndex();
+            }
+        } catch (IOException ignored) {
+        }
 
         indexLock.readLock().lock();
         try {
-            if (!DirectoryReader.indexExists(directory)) {
-                indexLock.readLock().unlock();
-                rebuildIndex();
-                indexLock.readLock().lock();
-            }
             try (var reader = DirectoryReader.open(directory)) {
                 var searcher = new IndexSearcher(reader);
 

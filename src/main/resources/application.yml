@@ -1,5 +1,3 @@
-server:
-  port: 8090
 spring:
   application:
     name: mcp-codestyle-server
@@ -22,6 +20,11 @@ repository:
   local-path: /var/cache/codestyle # 默认本地路径
   remote-path: http://localhost:8080 # 远程仓库地址
   # 仓库目录配置(可选,不配置则自动使用 local-path/codestyle-cache)
-  dir: /var/cache/codestyle/codestyle-cache
+  repository-dir: /var/cache/codestyle/codestyle-cache
   # 是否启用远程检索(默认false,使用本地Lucene检索)
-  remote-search-enabled: true
+  remote-search-enabled: false
+  # 远程检索超时时间(毫秒)
+  remote-search-timeout-ms: 5000
+  # API密钥(可选,如果远程仓库需要身份验证则配置)
+  api-key:
+  

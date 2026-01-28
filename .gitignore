@@ -46,6 +46,10 @@ build/
 *.diff
 *.patch
 *.tmp
+
+# Ignore docs/plans directory
+/docs/plans
+# Ignore Claude AI files
 .claude/
 # Ignore .github directory
 .github/

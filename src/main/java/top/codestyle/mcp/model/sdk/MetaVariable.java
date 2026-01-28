@@ -14,23 +14,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MetaVariable {
-    /**
-     * 变量名
-     */
-    public String variableName;
-    
-    /**
-     * 变量类型
-     */
-    public String variableType;
-    
-    /**
-     * 变量注释说明
-     */
-    public String variableComment;
-    
-    /**
-     * 变量示例值
-     */
+    private String variableName;
+    private String variableType;
+    private String variableComment;
     private String example;
 }

@@ -1,12 +1,9 @@
 package top.codestyle.mcp.util;
 
-import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.sdk.MetaInfo;
-import top.codestyle.mcp.model.sdk.MetaVariable;
 import top.codestyle.mcp.model.tree.TreeNode;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -111,35 +108,5 @@ public class PromptUtils {
         StringBuilder sb = new StringBuilder();
         vars.forEach((k, v) -> sb.append("- ").append(k).append(": ").append(v).append('\n'));
         return sb.toString();
-    }
-
-    /**
-     * 构建模板文件字符串（包含变量和模板内容）
-     *
-     * @param loadTemplateFile 模板文件列表
-     * @return 格式化的模板字符串
-     */
-    public static String buildTemplatesStr(List<LocalMetaInfo> loadTemplateFile) {
-        // 构建模板内容字符串
-        StringBuilder detailTemplates = new StringBuilder();
-        for (LocalMetaInfo metaInfo : loadTemplateFile) {
-            detailTemplates.append("```\n")
-                    .append(metaInfo.getTemplateContent() != null ? metaInfo.getTemplateContent() : "")
-                    .append("\n```\n");
-        }
-        String detailTemplatesStr = detailTemplates.toString().trim();
-
-        // 加载并构建模板变量列表
-        Map<String, String> vars = new LinkedHashMap<>();
-        for (MetaInfo n : loadTemplateFile) {
-            if (n.getInputVariables() == null)
-                continue;
-            for (MetaVariable v : n.getInputVariables()) {
-                String desc = String.format("%s[%s]", v.getVariableComment(), v.getVariableType());
-                vars.putIfAbsent(v.getVariableName(), desc);
-            }
-        }
-        String variables = buildVarString(vars).trim();
-        return variables + detailTemplatesStr;
     }
 }

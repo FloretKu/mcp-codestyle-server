@@ -52,8 +52,10 @@ public class CodestyleService {
             // 远程检索模式
             if (templateService.isRemoteSearchEnabled()) {
                 List<RemoteMetaConfig> remoteResults = templateService.fetchRemoteMetaConfig(templateKeyword);
+
+                // 远程返回空结果，自动fallback到本地Lucene检索
                 if (remoteResults.isEmpty()) {
-                    return promptService.buildRemoteUnavailable(templateKeyword);
+                    return searchLocalFallback(templateKeyword);
                 }
 
                 // 单个结果：精确匹配，缓存到本地并返回目录树
@@ -77,37 +79,44 @@ public class CodestyleService {
             }
 
             // 本地Lucene全文检索模式
-            List<LuceneIndexService.SearchResult> searchResults = luceneIndexService.fetchLocalMetaConfig(templateKeyword);
-
-            if (searchResults.isEmpty()) {
-                return promptService.buildLocalNotFound(repositoryConfig.getRepositoryDir(), templateKeyword);
-            }
-
-            // 检查是否为同一groupId的多个模板（命名空间搜索）
-            if (templateService.isGroupIdSearch(searchResults)) {
-                return templateService.buildGroupAggregatedResult(templateKeyword, searchResults);
-            }
-
-            // 处理多个不同模板的情况（让AI选择）
-            if (searchResults.size() > 1) {
-                return templateService.buildMultiResultResponse(templateKeyword, searchResults);
-            }
-
-            // 单模板结果
-            LuceneIndexService.SearchResult searchResult = searchResults.get(0);
-            List<MetaInfo> metaInfos = templateService.searchLocalRepository(
-                    searchResult.groupId(), searchResult.artifactId());
-
-            if (metaInfos.isEmpty()) {
-                return "本地仓库模板文件不完整,请检查模板目录";
-            }
-
-            TreeNode treeNode = PromptUtils.buildTree(metaInfos);
-            String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
-            return promptService.buildSearchResult(searchResult.artifactId(), treeStr, searchResult.description());
+            return searchLocalFallback(templateKeyword);
         } catch (Exception e) {
             return "模板搜索失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 本地Lucene检索（兜底策略）
+     */
+    private String searchLocalFallback(String templateKeyword) {
+        List<LuceneIndexService.SearchResult> searchResults = luceneIndexService.fetchLocalMetaConfig(templateKeyword);
+
+        if (searchResults.isEmpty()) {
+            return promptService.buildLocalNotFound(repositoryConfig.getRepositoryDir(), templateKeyword);
+        }
+
+        // 检查是否为同一groupId的多个模板（命名空间搜索）
+        if (templateService.isGroupIdSearch(searchResults)) {
+            return templateService.buildGroupAggregatedResult(templateKeyword, searchResults);
+        }
+
+        // 处理多个不同模板的情况（让AI选择）
+        if (searchResults.size() > 1) {
+            return templateService.buildMultiResultResponse(templateKeyword, searchResults);
+        }
+
+        // 单模板结果
+        LuceneIndexService.SearchResult searchResult = searchResults.get(0);
+        List<MetaInfo> metaInfos = templateService.searchLocalRepository(
+                searchResult.groupId(), searchResult.artifactId());
+
+        if (metaInfos.isEmpty()) {
+            return "本地仓库模板文件不完整,请检查模板目录";
+        }
+
+        TreeNode treeNode = PromptUtils.buildTree(metaInfos);
+        String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
+        return promptService.buildSearchResult(searchResult.artifactId(), treeStr, searchResult.description());
     }
 
     /**

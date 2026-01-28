@@ -19,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -142,21 +141,13 @@ public class TemplateService {
      * @return 路径关键词
      */
     private String extractPathKeywordsFromRemoteConfig(RemoteMetaConfig remoteConfig) {
-        HashSet<String> keywords = new HashSet<>();
+        List<String> paths = new ArrayList<>();
         if (remoteConfig.getConfig() != null && remoteConfig.getConfig().getFiles() != null) {
             for (var file : remoteConfig.getConfig().getFiles()) {
-                String path = file.getFilePath();
-                if (path != null && !path.isEmpty()) {
-                    String[] segments = path.split("[/\\\\]");
-                    for (String seg : segments) {
-                        if (!seg.isEmpty() && !seg.equals(".")) {
-                            keywords.add(seg);
-                        }
-                    }
-                }
+                paths.add(file.getFilePath());
             }
         }
-        return String.join(" ", keywords);
+        return SDKUtils.extractPathKeywords(paths);
     }
 
     /**
@@ -167,7 +158,9 @@ public class TemplateService {
      */
     public List<RemoteMetaConfig> fetchRemoteMetaConfig(String templateKeyword) {
         String remoteBaseUrl = repositoryConfig.getRemotePath();
-        return SDKUtils.fetchRemoteMetaConfig(remoteBaseUrl, templateKeyword);
+        String apiKey = repositoryConfig.getApiKey();
+        int timeoutMs = repositoryConfig.getRemoteSearchTimeoutMs();
+        return SDKUtils.fetchRemoteMetaConfig(remoteBaseUrl, templateKeyword, apiKey, timeoutMs);
     }
 
     /**
