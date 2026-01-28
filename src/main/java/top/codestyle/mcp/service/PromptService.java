@@ -5,8 +5,11 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
+import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 
@@ -260,6 +263,82 @@ public class PromptService {
             idx += 4;
         }
         return count;
+    }
+
+    /**
+     * 构建远程多结果响应
+     *
+     * @param keyword 搜索关键词
+     * @param results 远程搜索结果列表
+     * @return 格式化的多结果响应字符串
+     */
+    public String buildRemoteMultiResultResponse(String keyword, List<RemoteMetaConfig> results) {
+        StringBuilder resultList = new StringBuilder();
+        int total = results.size();
+        for (int i = 0; i < total; i++) {
+            RemoteMetaConfig result = results.get(i);
+            String desc = truncateDescription(result.getDescription(), 80);
+            String path = result.getGroupId() + "/" + result.getArtifactId();
+            if (result.getConfig() != null && result.getConfig().getVersion() != null) {
+                path += "/" + result.getConfig().getVersion();
+            }
+            resultList.append(String.format("## %d. %s/%s\n路径: %s\n描述: %s\n\n",
+                    i + 1,
+                    result.getGroupId(),
+                    result.getArtifactId(),
+                    path,
+                    desc));
+        }
+
+        RemoteMetaConfig first = results.get(0);
+        return buildMultiResult(
+                String.valueOf(total),
+                keyword,
+                resultList.toString().trim(),
+                first.getGroupId() + "/" + first.getArtifactId());
+    }
+
+    /**
+     * 构建本地多结果响应
+     *
+     * @param keyword 搜索关键词
+     * @param results 本地搜索结果列表
+     * @return 格式化的多结果响应字符串
+     */
+    public String buildLocalMultiResultResponse(String keyword, List<LuceneIndexService.SearchResult> results) {
+        int total = results.size();
+        StringBuilder resultList = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            LuceneIndexService.SearchResult result = results.get(i);
+            String desc = truncateDescription(result.description(), 80);
+            resultList.append(String.format("## %d. %s/%s\n路径: %s\n描述: %s\n\n",
+                    i + 1,
+                    result.groupId(),
+                    result.artifactId(),
+                    result.metaPath() != null ? result.metaPath() : result.groupId() + "/" + result.artifactId(),
+                    desc));
+        }
+
+        LuceneIndexService.SearchResult first = results.get(0);
+        return buildMultiResult(
+                String.valueOf(total),
+                keyword,
+                resultList.toString().trim(),
+                first.groupId() + "/" + first.artifactId());
+    }
+
+    /**
+     * 截断描述文本
+     *
+     * @param desc   描述文本
+     * @param maxLen 最大长度
+     * @return 截断后的文本
+     */
+    public String truncateDescription(String desc, int maxLen) {
+        if (desc == null || desc.isEmpty()) return "暂无描述";
+        String firstLine = desc.split("\n")[0].trim();
+        if (firstLine.length() <= maxLen) return firstLine;
+        return firstLine.substring(0, maxLen) + "...";
     }
 
 }

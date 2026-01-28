@@ -80,13 +80,13 @@ public class TemplateService {
                 String artifactId = parts[1];
 
                 // 获取远程配置
-                RemoteMetaConfig remoteConfig = fetchRemoteMetaConfig(artifactId);
-                if (remoteConfig == null) {
+                List<RemoteMetaConfig> remoteConfigs = fetchRemoteMetaConfig(artifactId);
+                if (remoteConfigs.isEmpty()) {
                     return null;
                 }
 
-                // 触发智能下载
-                boolean downloadSuccess = smartDownloadTemplate(remoteConfig);
+                // 触发智能下载（取第一个匹配结果）
+                boolean downloadSuccess = smartDownloadTemplate(remoteConfigs.get(0));
 
                 // 下载成功后重新搜索
                 if (downloadSuccess) {
@@ -160,14 +160,21 @@ public class TemplateService {
     }
 
     /**
-     * 从远程仓库获取元配置
+     * 从远程仓库搜索模板
      *
      * @param templateKeyword 模板关键词
-     * @return 远程模板配置
+     * @return 远程模板配置列表（已按相关性排序）
      */
-    public RemoteMetaConfig fetchRemoteMetaConfig(String templateKeyword) {
+    public List<RemoteMetaConfig> fetchRemoteMetaConfig(String templateKeyword) {
         String remoteBaseUrl = repositoryConfig.getRemotePath();
         return SDKUtils.fetchRemoteMetaConfig(remoteBaseUrl, templateKeyword);
+    }
+
+    /**
+     * 构建远程多结果响应
+     */
+    public String buildRemoteMultiResultResponse(String keyword, List<RemoteMetaConfig> results) {
+        return promptService.buildRemoteMultiResultResponse(keyword, results);
     }
 
     /**
@@ -267,23 +274,6 @@ public class TemplateService {
      * @return 格式化的多结果响应字符串
      */
     public String buildMultiResultResponse(String keyword, List<LuceneIndexService.SearchResult> results) {
-        StringBuilder resultList = new StringBuilder();
-        for (int i = 0; i < results.size(); i++) {
-            LuceneIndexService.SearchResult result = results.get(i);
-            resultList.append(String.format("%d. %s/%s - %s\n",
-                    i + 1,
-                    result.groupId(),
-                    result.artifactId(),
-                    result.description() != null && !result.description().isEmpty()
-                            ? result.description().split("\n")[0]
-                            : result.artifactId()));
-        }
-
-        LuceneIndexService.SearchResult first = results.get(0);
-        return promptService.buildMultiResult(
-                String.valueOf(results.size()),
-                keyword,
-                resultList.toString(),
-                first.groupId() + "/" + first.artifactId());
+        return promptService.buildLocalMultiResultResponse(keyword, results);
     }
 }

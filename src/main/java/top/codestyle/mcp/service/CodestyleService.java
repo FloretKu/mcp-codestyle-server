@@ -1,8 +1,9 @@
 package top.codestyle.mcp.service;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
@@ -39,37 +40,40 @@ public class CodestyleService {
      * @param templateKeyword 模板提示词，支持关键词或 groupId/artifactId 格式，如: CRUD, backend, frontend, continew/DatabaseConfig
      * @return 模板目录树和描述信息字符串
      */
-    @Tool(name = "codestyleSearch", description = """
+    @McpTool(name = "codestyleSearch", description = """
             根据模板提示词搜索代码模板库，返回匹配的模板目录树和模板组介绍。
             支持以下搜索格式：
             1. 关键词搜索：CRUD, frontend, backend 等
             2. 精确搜索：groupId/artifactId 格式
             """)
     public String codestyleSearch(
-            @ToolParam(description = "模板提示词，如: CRUD, bankend, frontend等") String templateKeyword) {
+            @McpToolParam(description = "模板提示词，如: CRUD, bankend, frontend等") String templateKeyword) {
         try {
             // 远程检索模式
             if (templateService.isRemoteSearchEnabled()) {
-                RemoteMetaConfig remoteConfig = templateService.fetchRemoteMetaConfig(templateKeyword);
-
-                if (remoteConfig == null) {
+                List<RemoteMetaConfig> remoteResults = templateService.fetchRemoteMetaConfig(templateKeyword);
+                if (remoteResults.isEmpty()) {
                     return promptService.buildRemoteUnavailable(templateKeyword);
                 }
 
-                templateService.smartDownloadTemplate(remoteConfig);
+                // 单个结果：精确匹配，缓存到本地并返回目录树
+                if (remoteResults.size() == 1) {
+                    RemoteMetaConfig remoteConfig = remoteResults.get(0);
+                    templateService.smartDownloadTemplate(remoteConfig);
 
-                String groupId = remoteConfig.getGroupId();
-                String artifactId = remoteConfig.getArtifactId();
-                String description = remoteConfig.getDescription();
+                    List<MetaInfo> metaInfos = templateService.searchLocalRepository(
+                            remoteConfig.getGroupId(), remoteConfig.getArtifactId());
+                    if (metaInfos.isEmpty()) {
+                        return "本地仓库模板文件不完整,请检查模板目录";
+                    }
 
-                List<MetaInfo> metaInfos = templateService.searchLocalRepository(groupId, artifactId);
-                if (metaInfos.isEmpty()) {
-                    return "本地仓库模板文件不完整,请检查模板目录";
+                    TreeNode treeNode = PromptUtils.buildTree(metaInfos);
+                    String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
+                    return promptService.buildSearchResult(remoteConfig.getArtifactId(), treeStr, remoteConfig.getDescription());
                 }
 
-                TreeNode treeNode = PromptUtils.buildTree(metaInfos);
-                String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
-                return promptService.buildSearchResult(artifactId, treeStr, description);
+                // 多个结果：返回列表让AI选择
+                return templateService.buildRemoteMultiResultResponse(templateKeyword, remoteResults);
             }
 
             // 本地Lucene全文检索模式
@@ -114,9 +118,9 @@ public class CodestyleService {
      * @return 模板文件的详细信息字符串（包含变量说明和模板内容）
      * @throws IOException 文件读取异常
      */
-    @Tool(name = "getTemplateByPath", description = "传入模板文件路径,获取模板文件的详细内容(包括变量说明和模板代码)")
+    @McpTool(name = "getTemplateByPath", description = "传入模板文件路径,获取模板文件的详细内容(包括变量说明和模板代码)")
     public String getTemplateByPath(
-            @ToolParam(description = "模板文件路径,如:backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl") String templatePath)
+            @McpToolParam(description = "模板文件路径,如:backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl") String templatePath)
             throws IOException {
 
         // 使用精确路径搜索模板

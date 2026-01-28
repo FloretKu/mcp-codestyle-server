@@ -46,7 +46,7 @@ build/
 *.diff
 *.patch
 *.tmp
-
+.claude/
 # Ignore .github directory
 .github/
 

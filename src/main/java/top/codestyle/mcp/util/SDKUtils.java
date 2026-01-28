@@ -99,13 +99,13 @@ public class SDKUtils {
     }
 
     /**
-     * 从远程仓库获取元配置
+     * 从远程仓库搜索模板
      *
-     * @param remoteBaseUrl   远程仓库基础URL
-     * @param query 模板关键词,如: RuoYi, CRUD
-     * @return 远程模板配置,失败返回null
+     * @param remoteBaseUrl 远程仓库基础URL
+     * @param query         模板关键词,如: RuoYi, CRUD, continew/CRUD
+     * @return 远程模板配置列表（已按相关性排序），单个表示精确匹配，多个表示模糊匹配
      */
-    public static RemoteMetaConfig fetchRemoteMetaConfig(String remoteBaseUrl, String query) {
+    public static List<RemoteMetaConfig> fetchRemoteMetaConfig(String remoteBaseUrl, String query) {
         try {
             String responseBody = HttpRequest.get(remoteBaseUrl + "/api/mcp/search")
                     .form("query", query)
@@ -114,10 +114,10 @@ public class SDKUtils {
                     .execute()
                     .body();
 
-            return JSONUtil.toBean(responseBody, RemoteMetaConfig.class);
+            return JSONUtil.toList(responseBody, RemoteMetaConfig.class);
 
         } catch (Exception e) {
-            return null;
+            return Collections.emptyList();
         }
     }
 

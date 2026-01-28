@@ -4,7 +4,6 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.json.JSONUtil;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
-import top.codestyle.mcp.model.meta.LocalMetaVariable;
 import top.codestyle.mcp.model.sdk.MetaInfo;
 import top.codestyle.mcp.model.sdk.MetaVariable;
 import top.codestyle.mcp.model.meta.LocalMetaConfig;
@@ -170,18 +169,5 @@ public class MetaInfoConvertUtil {
         }
         newConfig.setFiles(localFiles);
         return newConfig;
-    }
-
-    /**
-     * 转换MetaVariable为LocalMetaVariable（预留扩展）
-     *
-     * @param src 源MetaVariable对象
-     * @return 转换后的LocalMetaVariable对象
-     */
-    private static LocalMetaVariable convertVariable(MetaVariable src) {
-        if (src == null) {
-            return null;
-        }
-        return new LocalMetaVariable();
     }
 }

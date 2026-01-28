@@ -9,10 +9,12 @@ spring:
   ai:
     mcp:
       server:
-        name: mcp-codestyle-server # 服务器名称
-        version: 1.0.0 # 服务器版本
-        type: SYNC # 服务器类型: SYNC(同步) 或 ASYNC(异步)
-        stdio: true # 启用stdio模式
+        name: mcp-codestyle-server
+        version: 1.0.0
+        type: SYNC
+        stdio: true
+        annotation-scanner:
+          enabled: true
 # 仓库配置
 repository:
   # 本地基础路径，可通过JVM参数 -Dcache.base-path=自定义路径 覆盖
