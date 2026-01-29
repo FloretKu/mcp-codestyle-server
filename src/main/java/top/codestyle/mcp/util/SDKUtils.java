@@ -101,31 +101,46 @@ public class SDKUtils {
 
     /**
      * 从远程仓库搜索模板
-     * 支持重试机制，最多重试3次，间隔500ms
+     * 支持重试机制，最多重试3次
      *
      * @param remoteBaseUrl 远程仓库基础URL
      * @param query         模板关键词,如: RuoYi, CRUD, continew/CRUD
-     * @param apiKey        API Key（可为空）
-     * @return 远程模板配置列表（已按相关性排序），单个表示精确匹配，多个表示模糊匹配
+     * @param apiKey        API Key（必填）
+     * @param timeoutMs     超时时间（毫秒）
+     * @return 远程模板配置列表
      */
     public static List<RemoteMetaConfig> fetchRemoteMetaConfig(String remoteBaseUrl, String query, String apiKey, int timeoutMs) {
+        if (StrUtil.isBlank(apiKey)) {
+            throw new RuntimeException("API Key 未配置");
+        }
         int maxRetries = 3;
+        int baseDelay = 200;
         for (int i = 0; i < maxRetries; i++) {
             try {
                 HttpRequest request = HttpRequest.get(remoteBaseUrl + "/api/mcp/search")
                         .form("query", query)
                         .timeout(timeoutMs)
-                        .header("User-Agent", "MCP-CodeStyle-Server/1.0");
-                if (StrUtil.isNotBlank(apiKey)) {
-                    request.header("Authorization", "Bearer " + apiKey);
+                        .header("User-Agent", "MCP-CodeStyle-Server/1.0.2")
+                        .header("Authorization", "Bearer " + apiKey);
+                HttpResponse response = request.execute();
+                int status = response.getStatus();
+                if (status == 401) {
+                    throw new RuntimeException("API Key 无效或已过期");
                 }
-                String responseBody = request.execute().body();
-                return JSONUtil.toList(responseBody, RemoteMetaConfig.class);
+                if (status == 403) {
+                    throw new RuntimeException("API Key 权限不足");
+                }
+                if (status != 200) {
+                    throw new RuntimeException("远程服务器返回错误: " + status);
+                }
+                return JSONUtil.toList(response.body(), RemoteMetaConfig.class);
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 if (i == maxRetries - 1) {
                     return Collections.emptyList();
                 }
-                ThreadUtil.sleep(500);
+                ThreadUtil.sleep(baseDelay * (1 << i));
             }
         }
         return Collections.emptyList();

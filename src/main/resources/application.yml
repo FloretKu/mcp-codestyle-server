@@ -8,7 +8,7 @@ spring:
     mcp:
       server:
         name: mcp-codestyle-server
-        version: 1.0.0
+        version: 1.0.2
         type: SYNC
         stdio: true
         annotation-scanner:
