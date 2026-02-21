@@ -47,9 +47,6 @@ build/
 *.patch
 *.tmp
 
-# Ignore Claude AI files
-.claude/
-
 # Ignore CHANGELOG.md file
 CHANGELOG.md
 nul
