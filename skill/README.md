@@ -41,6 +41,13 @@ cp -r mcp-codestyle-server/skill/codestyle ~/.claude/skills/
 2. 解压到 `~/.claude/skills/codestyle`
 3. 重启 Claude Code
 
+**方式 3: npx工具一键安装 (推荐)**
+
+输入如下命令，按照CLI界面指引操作直接完成安装！
+```bash
+  npx skills add itxaiohanglover/mcp-codestyle-server
+```
+
 ### 首次使用
 
 启动 Claude Code 后，直接说：
