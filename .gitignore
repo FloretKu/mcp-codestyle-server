@@ -51,8 +51,6 @@ build/
 /docs/
 # Ignore Claude AI files
 .claude/
-# Ignore .github directory
-.github/
 
 # Ignore CHANGELOG.md file
 CHANGELOG.md

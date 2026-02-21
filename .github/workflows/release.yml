@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Build JAR
+        run: mvn clean package -DskipTests
+        working-directory: .
+      
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/codestyle-server.jar
+          body: |
+            ## MCP Codestyle Server ${{ steps.get_version.outputs.VERSION }}
+            
+            ### 🚀 Installation for Claude Skills
+            
+            ```bash
+            # Install skill
+            git clone https://github.com/itxaiohanglover/mcp-codestyle-server.git
+            cd mcp-codestyle-server/codestyle-skill
+            cp -r codestyle ~/.claude/skills/
+            
+            # JAR will be auto-downloaded on first use
+            # Or manually install:
+            cd ~/.claude/skills/codestyle/scripts
+            bash install.sh
+            ```
+            
+            ### 📦 Direct Download
+            
+            ```bash
+            # Download JAR directly
+            curl -L -o codestyle-server.jar \
+              https://github.com/itxaiohanglover/mcp-codestyle-server/releases/download/${{ steps.get_version.outputs.VERSION }}/codestyle-server.jar
+            
+            # Run
+            java -jar codestyle-server.jar search "CRUD"
+            ```
+            
+            ### 📝 Changes
+            
+            See [CHANGELOG.md](https://github.com/itxaiohanglover/mcp-codestyle-server/blob/${{ steps.get_version.outputs.VERSION }}/CHANGELOG.md)
+            
+            ### 📚 Documentation
+            
+            - [README](https://github.com/itxaiohanglover/mcp-codestyle-server/blob/${{ steps.get_version.outputs.VERSION }}/README.md)
+            - [Configuration Guide](https://github.com/itxaiohanglover/mcp-codestyle-server/blob/${{ steps.get_version.outputs.VERSION }}/codestyle-skill/codestyle/references/config.md)
+            - [Template Syntax](https://github.com/itxaiohanglover/mcp-codestyle-server/blob/${{ steps.get_version.outputs.VERSION }}/codestyle-skill/codestyle/references/template-syntax.md)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
