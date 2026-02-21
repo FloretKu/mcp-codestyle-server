@@ -1,12 +1,11 @@
 package top.codestyle.mcp.config;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import top.codestyle.mcp.util.SDKUtils;
+import top.codestyle.mcp.util.CodestyleClient;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -15,13 +14,12 @@ import java.nio.file.Paths;
 
 /**
  * 仓库配置类
- * 管理仓库路径和缓存目录配置
+ * 管理仓库路径和远程检索配置
  *
- * @author 小航love666, Kanttha, movclantian chonghaoGao
- * @since 2025-09-29
+ * @author CodeStyle Team
+ * @since 2.0.0
  */
-@Getter
-@Setter
+@Data
 @Configuration
 @ConfigurationProperties(prefix = "repository")
 public class RepositoryConfig {
@@ -37,69 +35,61 @@ public class RepositoryConfig {
     private String localPath;
 
     /**
-     * 远程仓库地址
-     * 可通过 -Drepository.remote-path=xxx 或 REPOSITORY_REMOTE_PATH 环境变量覆盖
+     * 远程仓库配置
      */
-    private String remotePath;
+    private RemoteConfig remote = new RemoteConfig();
 
     /**
-     * 仓库目录路径
-     * 默认在基础路径下创建codestyle-cache目录
-     * 可通过 -Drepository.repository-dir=xxx 或 REPOSITORY_REPOSITORY_DIR 环境变量覆盖
+     * 远程仓库配置类
      */
-    private String repositoryDir;
+    @Data
+    public static class RemoteConfig {
+        /**
+         * 是否启用远程检索
+         */
+        private boolean enabled = false;
 
-    /**
-     * 是否启用远程检索
-     * 默认false,使用本地Lucene检索
-     * 可通过 -Drepository.remote-search-enabled=true 或 REPOSITORY_REMOTE_SEARCH_ENABLED 环境变量覆盖
-     */
-    private boolean remoteSearchEnabled = false;
+        /**
+         * 远程仓库基础 URL
+         */
+        private String baseUrl;
 
-    /**
-     * 远程检索超时时间（毫秒）
-     * 可通过 -Drepository.remote-search-timeout-ms=10000 或 REPOSITORY_REMOTE_SEARCH_TIMEOUT_MS 环境变量覆盖
-     */
-    private int remoteSearchTimeoutMs = 30000;
+        /**
+         * Access Key（AK）
+         */
+        private String accessKey;
 
-    /**
-     * 远程API Key（可选）
-     * 可通过 -Drepository.api-key=xxx 或 REPOSITORY_API_KEY 环境变量覆盖
-     */
-    private String apiKey;
+        /**
+         * Secret Key（SK）
+         */
+        private String secretKey;
 
-    /**
-     * 获取本地基础路径
-     * 优先使用 cache.base-path JVM参数，保持向后兼容
-     */
-    public String getLocalPath() {
-        String cacheBasePath = System.getProperty("cache.base-path");
-        if (cacheBasePath != null && !cacheBasePath.isEmpty()) {
-            return cacheBasePath;
-        }
-        return localPath != null ? localPath : System.getProperty("java.io.tmpdir");
+        /**
+         * 超时时间（毫秒）
+         */
+        private int timeoutMs = 10000;
     }
 
     /**
      * 获取仓库目录路径
+     * 
+     * @return 仓库目录完整路径
      */
     public String getRepositoryDir() {
-        if (repositoryDir == null || repositoryDir.isEmpty()) {
-            return getLocalPath() + File.separator + "codestyle-cache";
-        }
-        return repositoryDir;
+        String basePath = localPath != null ? localPath : System.getProperty("java.io.tmpdir");
+        return basePath + File.separator + "codestyle-cache";
     }
 
     /**
      * 创建仓库目录Bean
-     * 确保仓库目录存在,创建失败时自动降级到系统临时目录
+     * 确保仓库目录存在
      *
      * @return 仓库目录路径
      */
     @Bean
     public Path repositoryDirectory() {
         try {
-            String normalizedRepoDir = SDKUtils.normalizePath(getRepositoryDir());
+            String normalizedRepoDir = CodestyleClient.normalizePath(getRepositoryDir());
             Path repoPath = Paths.get(normalizedRepoDir);
 
             if (!Files.exists(repoPath)) {

@@ -6,6 +6,7 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.ZipUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONUtil;
@@ -16,15 +17,18 @@ import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * 模板仓库SDK工具类
- * 提供模板搜索、远程下载、本地管理等功能
+ * CodeStyle 统一客户端
+ * 提供本地仓库管理、远程检索、模板下载等功能
  *
- * @author 小航love666, Kanttha, movclantian
- * @since 2025-09-29
+ * @author CodeStyle Team
+ * @since 2.0.0
  */
-public class SDKUtils {
+public class CodestyleClient {
+
+    // ==================== 本地仓库管理 ====================
 
     /**
      * 根据groupId和artifactId搜索指定模板组
@@ -99,8 +103,296 @@ public class SDKUtils {
         return null;
     }
 
+    // ==================== 远程检索（新增 MCP 支持）====================
+
     /**
-     * 从远程仓库搜索模板
+     * 从远程 CodeStyle 仓库检索模板（使用 ContiNew Open API 签名认证）
+     * 
+     * @param remoteBaseUrl 远程仓库基础URL
+     * @param query         检索关键词
+     * @param accessKey     Access Key（AK）
+     * @param secretKey     Secret Key（SK）
+     * @param timeoutMs     超时时间（毫秒）
+     * @return 远程检索结果列表
+     * @throws top.codestyle.mcp.exception.RemoteSearchException 检索失败时抛出
+     */
+    public static List<RemoteSearchResult> searchFromRemote(String remoteBaseUrl, String query, 
+                                                            String accessKey, String secretKey, int timeoutMs) {
+        if (StrUtil.isBlank(accessKey) || StrUtil.isBlank(secretKey)) {
+            throw new top.codestyle.mcp.exception.RemoteSearchException(
+                top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.CONFIG_ERROR,
+                "Access Key 或 Secret Key 未配置"
+            );
+        }
+
+        try {
+            // 1. 构建请求参数
+            long timestamp = System.currentTimeMillis();
+            String nonce = UUID.randomUUID().toString().replace("-", "");
+            
+            Map<String, String> params = new TreeMap<>();
+            params.put("query", query);
+            params.put("timestamp", String.valueOf(timestamp));
+            params.put("nonce", nonce);
+            params.put("accessKey", accessKey);
+
+            // 2. 生成签名（ContiNew 标准）
+            String sign = generateSignature(params, secretKey);
+            params.put("sign", sign);
+
+            // 3. 发送请求（使用 GET 方法）
+            Map<String, Object> formParams = new HashMap<>(params);
+            HttpRequest request = HttpRequest.get(remoteBaseUrl + "/open-api/search")
+                    .form(formParams)
+                    .timeout(timeoutMs)
+                    .header("User-Agent", "MCP-CodeStyle-Server/2.0.0");
+
+            HttpResponse response = request.execute();
+            int status = response.getStatus();
+
+            if (status == 401) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.SIGNATURE_FAILED,
+                    "签名验证失败，请检查 Access Key 和 Secret Key 是否正确"
+                );
+            }
+            
+            if (status == 403) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.ACCESS_DENIED,
+                    "访问被拒绝，请检查应用是否已启用且未过期"
+                );
+            }
+            
+            if (status >= 500) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.SERVER_ERROR,
+                    "服务器错误: HTTP " + status
+                );
+            }
+            
+            if (status != 200) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.SERVER_ERROR,
+                    "请求失败: HTTP " + status
+                );
+            }
+
+            // 4. 解析响应
+            String body = response.body();
+            Map<String, Object> result = JSONUtil.toBean(body, Map.class);
+            
+            if (!"200".equals(String.valueOf(result.get("code")))) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.SERVER_ERROR,
+                    "检索失败: " + result.get("msg")
+                );
+            }
+
+            List<Map<String, Object>> dataList = (List<Map<String, Object>>) result.get("data");
+            return dataList.stream()
+                    .map(CodestyleClient::convertToRemoteSearchResult)
+                    .collect(Collectors.toList());
+
+        } catch (top.codestyle.mcp.exception.RemoteSearchException e) {
+            throw e;
+        } catch (Exception e) {
+            // 检查是否是超时异常
+            if (e.getCause() instanceof java.net.SocketTimeoutException || 
+                e instanceof java.net.SocketTimeoutException) {
+                throw new top.codestyle.mcp.exception.RemoteSearchException(
+                    top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.TIMEOUT,
+                    "请求超时，请检查网络连接或增加超时时间",
+                    e
+                );
+            }
+            throw new top.codestyle.mcp.exception.RemoteSearchException(
+                top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.NETWORK_ERROR,
+                "网络错误: " + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    /**
+     * 生成 ContiNew Open API 签名
+     * 
+     * 签名算法（参考 ContiNew 文档）：
+     * 1. 将所有参数（除 sign）按 key 字典序排序（TreeMap 自动排序）
+     * 2. 拼接成 key1=value1&key2=value2 格式
+     * 3. 追加 &key=secretKey（注意：是 key，不是 secretKey）
+     * 4. MD5 加密（32位小写）
+     * 
+     * @param params    请求参数（已排序）
+     * @param secretKey Secret Key
+     * @return 签名字符串（小写）
+     */
+    private static String generateSignature(Map<String, String> params, String secretKey) {
+        // 1. 拼接参数字符串
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (!"sign".equals(entry.getKey())) {
+                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
+            }
+        }
+        
+        // 2. 追加 key=secretKey（ContiNew 标准）
+        sb.append("key=").append(secretKey);
+        
+        // 3. MD5 加密（32位小写）
+        return DigestUtil.md5Hex(sb.toString());
+    }
+
+    /**
+     * 转换远程检索结果为统一格式
+     */
+    private static RemoteSearchResult convertToRemoteSearchResult(Map<String, Object> data) {
+        RemoteSearchResult result = new RemoteSearchResult();
+        result.setId((String) data.get("id"));
+        result.setTitle((String) data.get("title"));
+        result.setSnippet((String) data.get("snippet"));
+        result.setContent((String) data.get("content"));
+        result.setScore(((Number) data.get("score")).doubleValue());
+        result.setHighlight((String) data.get("highlight"));
+        
+        // MCP 必要字段
+        result.setGroupId((String) data.get("groupId"));
+        result.setArtifactId((String) data.get("artifactId"));
+        result.setVersion((String) data.get("version"));
+        result.setFileType((String) data.get("fileType"));
+        
+        // 从 metadata 提取非索引字段
+        Map<String, Object> metadata = (Map<String, Object>) data.get("metadata");
+        if (metadata != null) {
+            result.setFilePath((String) metadata.get("filePath"));
+            result.setFilename((String) metadata.get("filename"));
+            result.setSha256((String) metadata.get("sha256"));
+        }
+        
+        return result;
+    }
+
+    /**
+     * 远程检索结果数据模型
+     */
+    public static class RemoteSearchResult {
+        private String id;
+        private String title;
+        private String snippet;
+        private String content;
+        private Double score;
+        private String highlight;
+        
+        // MCP 必要字段
+        private String groupId;
+        private String artifactId;
+        private String version;
+        private String fileType;
+        
+        // 非索引字段
+        private String filePath;
+        private String filename;
+        private String sha256;
+
+        // Getters and Setters
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        
+        public String getSnippet() { return snippet; }
+        public void setSnippet(String snippet) { this.snippet = snippet; }
+        
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        
+        public Double getScore() { return score; }
+        public void setScore(Double score) { this.score = score; }
+        
+        public String getHighlight() { return highlight; }
+        public void setHighlight(String highlight) { this.highlight = highlight; }
+        
+        public String getGroupId() { return groupId; }
+        public void setGroupId(String groupId) { this.groupId = groupId; }
+        
+        public String getArtifactId() { return artifactId; }
+        public void setArtifactId(String artifactId) { this.artifactId = artifactId; }
+        
+        public String getVersion() { return version; }
+        public void setVersion(String version) { this.version = version; }
+        
+        public String getFileType() { return fileType; }
+        public void setFileType(String fileType) { this.fileType = fileType; }
+        
+        public String getFilePath() { return filePath; }
+        public void setFilePath(String filePath) { this.filePath = filePath; }
+        
+        public String getFilename() { return filename; }
+        public void setFilename(String filename) { this.filename = filename; }
+        
+        public String getSha256() { return sha256; }
+        public void setSha256(String sha256) { this.sha256 = sha256; }
+        
+        /**
+         * 生成下载 URL
+         */
+        public String getDownloadUrl(String baseUrl) {
+            if (groupId != null && artifactId != null && version != null) {
+                return String.format("%s/api/file/download?groupId=%s&artifactId=%s&version=%s",
+                    baseUrl, groupId, artifactId, version);
+            }
+            return null;
+        }
+    }
+
+    // ==================== 远程模板下载（新版）====================
+
+    /**
+     * 下载模板（使用 RemoteSearchResult）
+     * 
+     * @param localRepoPath 本地仓库路径
+     * @param remoteBaseUrl 远程基础URL
+     * @param result 远程检索结果
+     * @return 是否成功
+     */
+    public static boolean downloadTemplate(String localRepoPath, String remoteBaseUrl, 
+                                           RemoteSearchResult result) {
+        try {
+            String downloadUrl = result.getDownloadUrl(remoteBaseUrl);
+            if (downloadUrl == null) {
+                return false;
+            }
+            
+            HttpResponse response = HttpRequest.get(downloadUrl)
+                    .timeout(60000)
+                    .header("User-Agent", "MCP-CodeStyle-Server/2.0.0")
+                    .execute();
+                
+            if (!response.isOk()) {
+                return false;
+            }
+            
+            File zipFile = FileUtil.createTempFile("template-", ".zip", true);
+            IoUtil.copy(response.bodyStream(), FileUtil.getOutputStream(zipFile));
+            
+            String targetPath = localRepoPath + File.separator + 
+                               result.getGroupId() + File.separator + 
+                               result.getArtifactId();
+            
+            ZipUtil.unzip(zipFile, new File(targetPath));
+            FileUtil.del(zipFile);
+            
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // ==================== 远程模板下载（兼容旧版）====================
+
+    /**
+     * 从远程仓库搜索模板（兼容旧版 API）
      * 支持重试机制，最多重试3次
      *
      * @param remoteBaseUrl 远程仓库基础URL
@@ -188,6 +480,8 @@ public class SDKUtils {
             return false;
         }
     }
+
+    // ==================== 私有辅助方法 ====================
 
     /**
      * 验证模板文件是否存在
@@ -452,6 +746,8 @@ public class SDKUtils {
         FileUtil.writeUtf8String(description, readmeFile);
     }
 
+    // ==================== 工具方法 ====================
+
     /**
      * 规范化路径字符串
      * 统一路径分隔符并移除连续分隔符,确保跨平台兼容性
@@ -497,3 +793,4 @@ public class SDKUtils {
         return String.join(" ", keywords);
     }
 }
+

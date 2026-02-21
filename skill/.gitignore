@@ -1,0 +1,20 @@
+# Codestyle Skill - Development Files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Test files
+test.bat
+test.sh
+*.test.*
+
+# Development documentation (keep in repo but ignore in releases)
+PRE_COMMIT_CHECK.md
+*_REPORT.md
+*_TEST.md
+*_GUIDE.md
+*_PLAN.md
+*_SUMMARY.md
+*_CHECKLIST.md
+

@@ -12,9 +12,9 @@
     </parent>
     <groupId>top.codestyle.mcp</groupId>
     <artifactId>mcp-codestyle-server</artifactId>
-    <version>1.0.2</version>
-    <name>mcp-codestyle-server</name>
-    <description>mcp-codestyle-server</description>
+    <version>1.0.0</version>
+    <name>Codestyle Server</name>
+    <description>Code template search and generation tool</description>
     <properties>
         <!--  Java运行环境。要求JDK版本17+ -->
         <java.version>17</java.version>
@@ -60,6 +60,11 @@
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-json</artifactId>
+            <version>5.8.42</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-crypto</artifactId>
             <version>5.8.42</version>
         </dependency>
         <dependency>

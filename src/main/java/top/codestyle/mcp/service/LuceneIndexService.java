@@ -17,7 +17,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.meta.LocalMetaConfig;
-import top.codestyle.mcp.util.SDKUtils;
+import top.codestyle.mcp.util.CodestyleClient;
 
 import java.io.File;
 import java.io.IOException;
@@ -166,7 +166,7 @@ public class LuceneIndexService {
                 }
             }
         }
-        return SDKUtils.extractPathKeywords(paths);
+        return CodestyleClient.extractPathKeywords(paths);
     }
 
     /**

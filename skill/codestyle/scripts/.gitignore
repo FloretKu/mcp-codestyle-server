@@ -1,0 +1,5 @@
+*.jar
+*.jar.original
+*.jar.backup
+.cfg_initialized
+.DS_Store

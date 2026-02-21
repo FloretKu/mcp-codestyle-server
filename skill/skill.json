@@ -1,0 +1,160 @@
+{
+  "name": "codestyle",
+  "version": "1.0.0",
+  "description": "Code template retrieval and generation via MCP server with auto-installation. Supports CRUD, scaffold, and custom templates with intelligent search and one-click updates.",
+  "author": "CodeStyle Team",
+  "contributors": [
+    "artboy (itxaiohanglover)",
+    "Kanttha",
+    "movclantian",
+    "cris_tofu (gccszs)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itxaiohanglover/mcp-codestyle-server"
+  },
+  "homepage": "https://github.com/itxaiohanglover/mcp-codestyle-server",
+  "license": "MIT",
+  "keywords": [
+    "code-generation",
+    "template",
+    "scaffold",
+    "crud",
+    "mcp",
+    "codestyle",
+    "freemarker",
+    "java",
+    "spring-boot",
+    "productivity",
+    "automation"
+  ],
+  "categories": [
+    "code-generation",
+    "productivity",
+    "development-tools"
+  ],
+  "marketplace": {
+    "featured": false,
+    "verified": false,
+    "icon": "https://raw.githubusercontent.com/itxaiohanglover/mcp-codestyle-server/main/docs/images/icon.png",
+    "banner": "https://raw.githubusercontent.com/itxaiohanglover/mcp-codestyle-server/main/docs/images/banner.png",
+    "screenshots": [
+      "https://raw.githubusercontent.com/itxaiohanglover/mcp-codestyle-server/main/docs/images/screenshot-search.png",
+      "https://raw.githubusercontent.com/itxaiohanglover/mcp-codestyle-server/main/docs/images/screenshot-generate.png",
+      "https://raw.githubusercontent.com/itxaiohanglover/mcp-codestyle-server/main/docs/images/screenshot-config.png"
+    ],
+    "video": "",
+    "demo": "",
+    "tags": [
+      "auto-install",
+      "cross-platform",
+      "template-engine",
+      "code-scaffold",
+      "spring-boot",
+      "vue",
+      "typescript"
+    ]
+  },
+  "requirements": {
+    "java": ">=17",
+    "git": ">=2.0",
+    "tools": ["curl", "wget", "powershell"]
+  },
+  "installation": {
+    "type": "script",
+    "script": "scripts/install.sh",
+    "description": "Auto-downloads codestyle-server.jar on first use. No manual configuration needed."
+  },
+  "commands": [
+    {
+      "name": "search",
+      "description": "Search code templates by keyword",
+      "usage": "codestyle search \"keyword\"",
+      "examples": [
+        "codestyle search \"CRUD\"",
+        "codestyle search \"login\"",
+        "codestyle search \"continew/crud-plus\""
+      ]
+    },
+    {
+      "name": "get",
+      "description": "Get template content by path",
+      "usage": "codestyle get \"path\"",
+      "examples": [
+        "codestyle get \"continew/crud-plus/1.0.0/src/main/java/controller/Controller.ftl\""
+      ]
+    }
+  ],
+  "configuration": {
+    "type": "json",
+    "location": "scripts/cfg.json",
+    "schema": {
+      "repository": {
+        "local-path": {
+          "type": "string",
+          "default": "~/.codestyle/cache",
+          "description": "Local cache directory for templates"
+        },
+        "remote": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable remote template repository"
+          },
+          "base-url": {
+            "type": "string",
+            "description": "Remote API base URL"
+          },
+          "access-key": {
+            "type": "string",
+            "description": "Access Key (AK) for authentication"
+          },
+          "secret-key": {
+            "type": "string",
+            "description": "Secret Key (SK) for authentication"
+          },
+          "timeout-ms": {
+            "type": "integer",
+            "default": 10000,
+            "description": "Request timeout in milliseconds"
+          }
+        }
+      }
+    }
+  },
+  "triggers": [
+    "generate code template",
+    "create CRUD",
+    "generate scaffold",
+    "code generator",
+    "generate controller",
+    "generate service",
+    "generate entity",
+    "use template to generate code",
+    "create login module",
+    "generate export function"
+  ],
+  "documentation": {
+    "readme": "README.md",
+    "changelog": "CHANGELOG.md",
+    "config": "codestyle/references/config.md",
+    "syntax": "codestyle/references/template-syntax.md",
+    "marketplace": "MARKETPLACE_GUIDE.md"
+  },
+  "support": {
+    "issues": "https://github.com/itxaiohanglover/mcp-codestyle-server/issues",
+    "discussions": "https://github.com/itxaiohanglover/mcp-codestyle-server/discussions",
+    "email": "support@codestyle.top"
+  },
+  "platforms": [
+    "windows",
+    "macos",
+    "linux"
+  ],
+  "languages": [
+    "en",
+    "zh-CN"
+  ]
+}
+
+

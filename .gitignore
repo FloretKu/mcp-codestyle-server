@@ -57,3 +57,6 @@ build/
 # Ignore CHANGELOG.md file
 CHANGELOG.md
 nul
+
+# Archive directory (development documents)
+/archive/

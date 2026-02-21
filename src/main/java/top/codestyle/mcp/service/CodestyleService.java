@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.sdk.MetaInfo;
-import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 import top.codestyle.mcp.model.tree.TreeNode;
+import top.codestyle.mcp.util.CodestyleClient;
 import top.codestyle.mcp.util.PromptUtils;
 
 import java.io.IOException;
@@ -51,31 +51,37 @@ public class CodestyleService {
         try {
             // 远程检索模式
             if (templateService.isRemoteSearchEnabled()) {
-                List<RemoteMetaConfig> remoteResults = templateService.fetchRemoteMetaConfig(templateKeyword);
+                List<CodestyleClient.RemoteSearchResult> remoteResults = templateService.searchFromRemote(templateKeyword);
 
                 // 远程返回空结果，自动fallback到本地Lucene检索
                 if (remoteResults.isEmpty()) {
                     return searchLocalFallback(templateKeyword, true);
                 }
 
-                // 单个结果：精确匹配，缓存到本地并返回目录树
+                // 单个结果：精确匹配，下载到本地并返回目录树
                 if (remoteResults.size() == 1) {
-                    RemoteMetaConfig remoteConfig = remoteResults.get(0);
-                    templateService.smartDownloadTemplate(remoteConfig);
+                    CodestyleClient.RemoteSearchResult result = remoteResults.get(0);
+                    
+                    // 下载模板
+                    templateService.downloadTemplate(result);
 
                     List<MetaInfo> metaInfos = templateService.searchLocalRepository(
-                            remoteConfig.getGroupId(), remoteConfig.getArtifactId());
+                            result.getGroupId(), result.getArtifactId());
+                    
                     if (metaInfos.isEmpty()) {
                         return "本地仓库模板文件不完整,请检查模板目录";
                     }
 
                     TreeNode treeNode = PromptUtils.buildTree(metaInfos);
                     String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
-                    return promptService.buildSearchResult(remoteConfig.getArtifactId(), treeStr, remoteConfig.getDescription());
+                    
+                    // 使用 snippet 作为描述（如果没有则使用 title）
+                    String description = result.getSnippet() != null ? result.getSnippet() : result.getTitle();
+                    return promptService.buildSearchResult(result.getArtifactId(), treeStr, description);
                 }
 
                 // 多个结果：返回列表让AI选择
-                return templateService.buildRemoteMultiResultResponse(templateKeyword, remoteResults);
+                return promptService.buildRemoteSearchResultResponse(templateKeyword, remoteResults);
             }
 
             // 本地Lucene全文检索模式

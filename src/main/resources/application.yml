@@ -8,7 +8,7 @@ spring:
     mcp:
       server:
         name: mcp-codestyle-server
-        version: 1.0.2
+        version: 2.1.0
         type: SYNC
         stdio: true
         annotation-scanner:
@@ -17,18 +17,23 @@ spring:
 logging:
   level:
     root: OFF
+
 # 仓库配置
 repository:
-  # 本地基础路径，可通过JVM参数 -Dcache.base-path=自定义路径 覆盖
-  # 示例: java -Dcache.base-path=/custom/path -jar app.jar
-  local-path: /var/cache/codestyle # 默认本地路径
-  remote-path: http://localhost:8080 # 远程仓库地址
-  # 仓库目录配置(可选,不配置则自动使用 local-path/codestyle-cache)
-  repository-dir: /var/cache/codestyle/codestyle-cache
-  # 是否启用远程检索(默认false,使用本地Lucene检索)
-  remote-search-enabled: false
-  # 远程检索超时时间(毫秒)
-  remote-search-timeout-ms: 5000
-  # API密钥(可选,如果远程仓库需要身份验证则配置)
-  api-key:
+  # 本地缓存路径（可通过环境变量 CODESTYLE_CACHE_PATH 覆盖）
+  local-path: ${CODESTYLE_CACHE_PATH:./mcp-cache}
   
+  # 远程检索配置
+  remote:
+    # 是否启用远程检索（可通过环境变量 CODESTYLE_REMOTE_ENABLED 覆盖）
+    enabled: ${CODESTYLE_REMOTE_ENABLED:false}
+    
+    # 远程服务地址（建议在配置文件中设置，不同环境使用不同的 application-{profile}.yml）
+    base-url: http://localhost:8000
+    
+    # Access Key 和 Secret Key（建议在配置文件中设置，或使用配置中心）
+    access-key: ""
+    secret-key: ""
+    
+    # 超时时间（毫秒）
+    timeout-ms: 10000

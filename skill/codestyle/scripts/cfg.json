@@ -1,0 +1,12 @@
+{
+  "repository": {
+    "local-path": "~/.codestyle/cache",
+    "remote": {
+      "enabled": false,
+      "base-url": "http://localhost:8000",
+      "access-key": "",
+      "secret-key": "",
+      "timeout-ms": 10000
+    }
+  }
+}

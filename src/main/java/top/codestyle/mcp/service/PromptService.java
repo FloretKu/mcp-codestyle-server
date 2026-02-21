@@ -266,12 +266,44 @@ public class PromptService {
     }
 
     /**
-     * 构建远程多结果响应
+     * 构建远程检索结果响应（新版：使用 RemoteSearchResult）
      *
      * @param keyword 搜索关键词
      * @param results 远程搜索结果列表
      * @return 格式化的多结果响应字符串
      */
+    public String buildRemoteSearchResultResponse(String keyword, List<top.codestyle.mcp.util.CodestyleClient.RemoteSearchResult> results) {
+        StringBuilder resultList = new StringBuilder();
+        int total = results.size();
+        for (int i = 0; i < total; i++) {
+            var result = results.get(i);
+            String desc = truncateDescription(result.getSnippet(), 80);
+            String path = result.getGroupId() + "/" + result.getArtifactId();
+            if (result.getVersion() != null) {
+                path += "/" + result.getVersion();
+            }
+            resultList.append(String.format("## %d. %s/%s\n路径: %s\n描述: %s\n\n",
+                    i + 1,
+                    result.getGroupId(),
+                    result.getArtifactId(),
+                    path,
+                    desc));
+        }
+
+        var first = results.get(0);
+        return buildMultiResult(
+                String.valueOf(total),
+                keyword,
+                resultList.toString().trim(),
+                first.getGroupId() + "/" + first.getArtifactId());
+    }
+
+    /**
+     * 构建远程多结果响应（旧版：兼容 RemoteMetaConfig）
+     * 
+     * @deprecated 使用 {@link #buildRemoteSearchResultResponse(String, List)} 替代
+     */
+    @Deprecated
     public String buildRemoteMultiResultResponse(String keyword, List<RemoteMetaConfig> results) {
         StringBuilder resultList = new StringBuilder();
         int total = results.size();

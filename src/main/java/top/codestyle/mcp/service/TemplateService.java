@@ -8,9 +8,9 @@ import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.sdk.MetaInfo;
 import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 import top.codestyle.mcp.model.tree.TreeNode;
+import top.codestyle.mcp.util.CodestyleClient;
 import top.codestyle.mcp.util.MetaInfoConvertUtil;
 import top.codestyle.mcp.util.PromptUtils;
-import top.codestyle.mcp.util.SDKUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +49,7 @@ public class TemplateService {
      */
     public List<MetaInfo> searchLocalRepository(String groupId, String artifactId) {
         String localRepoPath = repositoryConfig.getRepositoryDir();
-        return SDKUtils.searchLocalRepository(groupId, artifactId, localRepoPath);
+        return CodestyleClient.searchLocalRepository(groupId, artifactId, localRepoPath);
     }
 
     /**
@@ -64,7 +64,7 @@ public class TemplateService {
         String localRepoPath = repositoryConfig.getRepositoryDir();
 
         // 从本地仓库中查找模板
-        MetaInfo localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
+        MetaInfo localResult = CodestyleClient.searchByPath(exactPath, localRepoPath);
         if (localResult != null) {
             LocalMetaInfo result = MetaInfoConvertUtil.convert(localResult);
             result.setTemplateContent(readTemplateContent(localResult));
@@ -76,20 +76,21 @@ public class TemplateService {
             // 解析路径获取artifactId(格式: groupId/artifactId/version/filePath/filename)
             String[] parts = exactPath.split("/");
             if (parts.length >= 2) {
+                String groupId = parts[0];
                 String artifactId = parts[1];
 
-                // 获取远程配置
-                List<RemoteMetaConfig> remoteConfigs = fetchRemoteMetaConfig(artifactId);
-                if (remoteConfigs.isEmpty()) {
+                // 使用新版远程检索
+                List<CodestyleClient.RemoteSearchResult> remoteResults = searchFromRemote(artifactId);
+                if (remoteResults.isEmpty()) {
                     return null;
                 }
 
-                // 触发智能下载（取第一个匹配结果）
-                boolean downloadSuccess = smartDownloadTemplate(remoteConfigs.get(0));
+                // 触发下载（取第一个匹配结果）
+                boolean downloadSuccess = downloadTemplate(remoteResults.get(0));
 
                 // 下载成功后重新搜索
                 if (downloadSuccess) {
-                    localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
+                    localResult = CodestyleClient.searchByPath(exactPath, localRepoPath);
                     if (localResult != null) {
                         LocalMetaInfo result = MetaInfoConvertUtil.convert(localResult);
                         result.setTemplateContent(readTemplateContent(localResult));
@@ -104,70 +105,33 @@ public class TemplateService {
     }
 
     /**
-     * 智能下载或更新模板
-     * <p>根据SHA256哈希值判断是否需要更新，下载成功后自动更新Lucene索引
-     *
-     * @param remoteConfig 远程模板配置
-     * @return true-下载成功，false-下载失败
-     */
-    public boolean smartDownloadTemplate(RemoteMetaConfig remoteConfig) {
-        String localRepoPath = repositoryConfig.getRepositoryDir();
-        String remoteBaseUrl = repositoryConfig.getRemotePath();
-        boolean success = SDKUtils.smartDownloadTemplate(localRepoPath, remoteBaseUrl, remoteConfig);
-
-        // 下载成功后更新Lucene索引
-        if (success) {
-            try {
-                String groupId = remoteConfig.getGroupId();
-                String artifactId = remoteConfig.getArtifactId();
-                String description = remoteConfig.getDescription();
-                String metaPath = localRepoPath + File.separator + groupId + File.separator +
-                        artifactId + File.separator + "meta.json";
-
-                // 提取路径关键词
-                String pathKeywords = extractPathKeywordsFromRemoteConfig(remoteConfig);
-
-                luceneIndexService.updateIndex(groupId, artifactId, description, pathKeywords, metaPath);
-            } catch (Exception ignored) {
-            }
-        }
-        return success;
-    }
-
-    /**
-     * 从远程配置提取路径关键词
-     *
-     * @param remoteConfig 远程配置
-     * @return 路径关键词
-     */
-    private String extractPathKeywordsFromRemoteConfig(RemoteMetaConfig remoteConfig) {
-        List<String> paths = new ArrayList<>();
-        if (remoteConfig.getConfig() != null && remoteConfig.getConfig().getFiles() != null) {
-            for (var file : remoteConfig.getConfig().getFiles()) {
-                paths.add(file.getFilePath());
-            }
-        }
-        return SDKUtils.extractPathKeywords(paths);
-    }
-
-    /**
-     * 从远程仓库搜索模板
+     * 从远程仓库搜索模板（使用 Open API 签名认证）
      *
      * @param templateKeyword 模板关键词
-     * @return 远程模板配置列表（已按相关性排序）
+     * @return 远程检索结果列表
      */
-    public List<RemoteMetaConfig> fetchRemoteMetaConfig(String templateKeyword) {
-        String remoteBaseUrl = repositoryConfig.getRemotePath();
-        String apiKey = repositoryConfig.getApiKey();
-        int timeoutMs = repositoryConfig.getRemoteSearchTimeoutMs();
-        return SDKUtils.fetchRemoteMetaConfig(remoteBaseUrl, templateKeyword, apiKey, timeoutMs);
+    public List<CodestyleClient.RemoteSearchResult> searchFromRemote(String templateKeyword) {
+        RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
+        return CodestyleClient.searchFromRemote(
+            remote.getBaseUrl(), 
+            templateKeyword, 
+            remote.getAccessKey(), 
+            remote.getSecretKey(), 
+            remote.getTimeoutMs()
+        );
     }
 
     /**
-     * 构建远程多结果响应
+     * 下载远程模板
+     * 
+     * @param result 远程检索结果
+     * @return 是否成功
      */
-    public String buildRemoteMultiResultResponse(String keyword, List<RemoteMetaConfig> results) {
-        return promptService.buildRemoteMultiResultResponse(keyword, results);
+    public boolean downloadTemplate(CodestyleClient.RemoteSearchResult result) {
+        String localRepoPath = repositoryConfig.getRepositoryDir();
+        String remoteBaseUrl = repositoryConfig.getRemote().getBaseUrl();
+        
+        return CodestyleClient.downloadTemplate(localRepoPath, remoteBaseUrl, result);
     }
 
     /**
@@ -206,7 +170,7 @@ public class TemplateService {
      * @return true-远程检索, false-本地Lucene检索
      */
     public boolean isRemoteSearchEnabled() {
-        return repositoryConfig.isRemoteSearchEnabled();
+        return repositoryConfig.getRemote().isEnabled();
     }
 
     /**
