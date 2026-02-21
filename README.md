@@ -1,6 +1,16 @@
-# Codestyle Server MCP【码蜂】
+<div align="center">
+  <img src="logo.png" alt="Codestyle Logo" width="200"/>
+  
+  # Codestyle Server MCP【码蜂】
+  
+  基于 Spring AI 的 MCP 服务器，为 IDE 和 AI 代理提供代码模板搜索和检索工具。
+  
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
+  [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-green.svg)](https://spring.io/projects/spring-boot)
+</div>
 
-基于 Spring AI 的 MCP 服务器，为 IDE 和 AI 代理提供代码模板搜索和检索工具。
+---
 
 ## 🚀 核心特性
 
@@ -237,40 +247,21 @@ A: 系统会自动降级到本地 Lucene 检索
 
 查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新记录。
 
-### v2.1.0 (2026-02-21) ✨
+### 最新版本 v1.0.0 (2025-02-21)
 
-**代码简化**：
-- 移除 `RepositoryConfig` 中的冗余 getter 方法，利用 Lombok `@Data` 自动生成
-- 代码行数减少 70 行（-22%）
+**核心功能**：
+- ✅ 本地模板搜索和检索
+- ✅ 自动下载 JAR 包
+- ✅ 自动克隆模板仓库
+- ✅ 智能等待机制（避免超时）
+- ✅ 零用户确认（全自动初始化）
+- ✅ 跨平台支持（Windows, Linux, macOS）
 
-**配置优化**：
-- 简化环境变量配置，从 6 个减少到 2 个
-- 只保留 `CODESTYLE_CACHE_PATH` 和 `CODESTYLE_REMOTE_ENABLED`
-- 其他配置建议在 `application.yml` 中管理
-
-**最佳实践**：
-- 新增配置管理最佳实践文档
-- 推荐使用 Spring Profile 管理不同环境配置
-- 推荐使用配置中心管理敏感信息
-
-### v2.0.0 (2026-02-21) 🎉
-
-**破坏性变更**：
-- 移除所有旧版配置支持，不再兼容 v1.x
-- 统一使用 Open API 签名认证（ContiNew 标准）
-
-**新功能**：
-- 新增配置验证器，启动时自动验证配置
-- 优化错误处理，提供清晰的错误提示
-- 简化配置结构，移除冗余配置项
-
-**升级指南**：查看 [CHANGELOG.md](CHANGELOG.md#migration-guide-v1x--v20)
-
-### v1.0.2 (2026-02-17)
-
-- 支持本地 Lucene 全文检索
-- 支持远程模板下载（使用 API Key）
-- 支持模板智能缓存
+**技术优化**：
+- 修复 Git 克隆超时问题
+- 修复 `cmd.exe` 输出缓冲问题
+- 简化用户交互流程
+- 移除外部依赖（PowerShell/jq/python）
 
 ## 📄 许可证
 
@@ -285,6 +276,7 @@ A: 系统会自动降级到本地 Lucene 检索
 
 ## 🔗 相关链接
 
-- [详细升级规划](docs/UPGRADE_PLAN_V2_DETAILED.md)
-- [升级总结](docs/UPGRADE_SUMMARY.md)
-- [Codestyle Skill 集成](codestyle-skill/README.md)
+- [GitHub 仓库](https://github.com/itxaiohanglover/mcp-codestyle-server)
+- [问题反馈](https://github.com/itxaiohanglover/mcp-codestyle-server/issues)
+- [讨论区](https://github.com/itxaiohanglover/mcp-codestyle-server/discussions)
+- [Codestyle Skill](skill/README.md)

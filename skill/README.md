@@ -1,15 +1,23 @@
-# Codestyle Skill
+<div align="center">
+  <img src="../logo.png" alt="Codestyle Logo" width="150"/>
+  
+  # Codestyle Skill
+  
+  代码模板检索与生成的 Claude Code Skill，支持自动安装和配置。
+  
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
+  [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
+</div>
 
-代码模板检索与生成的 Claude Code Skill，支持自动安装和配置。
+---
 
 ## ✨ 特性
 
-- 🚀 **自动安装**: 首次使用自动下载 JAR 和模板仓库
-- 🔍 **智能搜索**: 支持关键词、中文、groupId/artifactId 搜索
-- 📦 **一键更新**: 单命令更新 JAR 和模板
+- 🚀 **零配置**: 首次使用自动下载 JAR 和模板仓库
+- 🔍 **智能搜索**: 支持关键词、中文、路径搜索
+- 📦 **自动更新**: 单命令更新 JAR 和模板
 - 🌍 **跨平台**: 完整支持 Windows、Linux、macOS
-- 🔧 **灵活配置**: 支持本地模式和远程模式
-- 🎯 **开箱即用**: 零配置，安装即用
+- 🎯 **开箱即用**: 安装即用，无需配置
 
 ## 🚀 快速开始
 
@@ -29,7 +37,7 @@ cp -r mcp-codestyle-server/skill/codestyle ~/.claude/skills/
 
 **方式 2: 手动下载**
 
-1. 下载 [最新版本](https://github.com/itxaiohanglover/mcp-codestyle-server/releases)
+1. 下载 [最新版本](https://github.com/itxaiohanglover/mcp-codestyle-server/releases/latest)
 2. 解压到 `~/.claude/skills/codestyle`
 3. 重启 Claude Code
 
@@ -42,12 +50,12 @@ cp -r mcp-codestyle-server/skill/codestyle ~/.claude/skills/
 ```
 
 系统会自动：
-1. 下载 codestyle-server.jar（约 37 MB，30-60 秒）
-2. 克隆官方模板仓库（约 5 MB，5-10 秒）
-3. 构建搜索索引（1-2 秒）
+1. 下载 codestyle-server.jar（~37 MB）
+2. 克隆模板仓库
+3. 构建搜索索引
 4. 返回搜索结果
 
-**总耗时**: 首次约 40-70 秒，后续 < 1 秒
+**总耗时**: 首次约 30-60 秒，后续 < 1 秒
 
 ## 💡 使用示例
 
@@ -124,70 +132,11 @@ codestyle/
 
 ### 默认配置（推荐）
 
-首次使用时，Skill 会使用默认配置：
+首次使用时，Skill 会使用默认配置，模板存储在 `~/.codestyle/cache`，无需额外配置。
 
-```json
-{
-  "repository": {
-    "local-path": "~/.codestyle/cache",
-    "remote": {
-      "enabled": false
-    }
-  }
-}
-```
+### 自定义配置（可选）
 
-**特点**:
-- 模板存储在用户主目录
-- 本地模式，无需网络（首次除外）
-- 适合个人开发
-
-### 自定义配置
-
-如需自定义，可以修改 `~/.claude/skills/codestyle/scripts/cfg.json`：
-
-**企业内网环境**:
-```json
-{
-  "repository": {
-    "local-path": "D:/company/codestyle-cache",
-    "remote": {
-      "enabled": true,
-      "base-url": "https://codestyle.company.com",
-      "access-key": "your-ak",
-      "secret-key": "your-sk",
-      "timeout-ms": 10000
-    }
-  }
-}
-```
-
-**团队协作**:
-```json
-{
-  "repository": {
-    "local-path": "~/shared/codestyle-cache",
-    "remote": {
-      "enabled": true,
-      "base-url": "https://team-codestyle.example.com",
-      "access-key": "team-ak",
-      "secret-key": "team-sk",
-      "timeout-ms": 10000
-    }
-  }
-}
-```
-
-### 配置说明
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `local-path` | 本地缓存路径 | `~/.codestyle/cache` |
-| `remote.enabled` | 是否启用远程仓库 | `false` |
-| `remote.base-url` | 远程仓库地址 | `http://localhost:8000` |
-| `remote.access-key` | 访问密钥（AK） | `""` |
-| `remote.secret-key` | 密钥（SK） | `""` |
-| `remote.timeout-ms` | 超时时间（毫秒） | `10000` |
+如需自定义，可以修改 `~/.claude/skills/codestyle/scripts/cfg.json`。
 
 详细配置说明请参考：[配置文档](codestyle/references/config.md)
 
@@ -299,7 +248,7 @@ cp -r skill/codestyle ~/.claude/skills/
 
 - [配置文档](codestyle/references/config.md) - 详细配置说明
 - [模板语法](codestyle/references/template-syntax.md) - 模板格式和变量规则
-- [CHANGELOG](CHANGELOG.md) - 版本更新日志
+- [更新日志](CHANGELOG.md) - 版本更新日志
 - [GitHub 仓库](https://github.com/itxaiohanglover/mcp-codestyle-server)
 
 ## 🤝 贡献
@@ -325,14 +274,8 @@ cp -r skill/codestyle ~/.claude/skills/
 
 ## 🔗 相关链接
 
-- [MCP Codestyle Server](https://github.com/itxaiohanglover/mcp-codestyle-server)
-- [Claude Code Skills 文档](https://code.claude.com/docs/en/skills)
+- [GitHub 仓库](https://github.com/itxaiohanglover/mcp-codestyle-server)
 - [问题反馈](https://github.com/itxaiohanglover/mcp-codestyle-server/issues)
 - [讨论区](https://github.com/itxaiohanglover/mcp-codestyle-server/discussions)
-
-## ⭐ Star History
-
-如果这个项目对你有帮助，请给我们一个 Star！
-
-[![Star History Chart](https://api.star-history.com/svg?repos=itxaiohanglover/mcp-codestyle-server&type=Date)](https://star-history.com/#itxaiohanglover/mcp-codestyle-server&Date)
+- [最新版本](https://github.com/itxaiohanglover/mcp-codestyle-server/releases/latest)
 
