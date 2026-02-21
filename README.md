@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Codestyle Logo" width="200"/>
+  <img src="img/logo.png" alt="Codestyle Logo" width="200"/>
   
   # Codestyle Server MCP【码蜂】
   
