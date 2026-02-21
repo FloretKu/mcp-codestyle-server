@@ -47,8 +47,6 @@ build/
 *.patch
 *.tmp
 
-# Ignore docs directory
-/docs/
 # Ignore Claude AI files
 .claude/
 
@@ -61,3 +59,14 @@ nul
 
 # Docs directory (internal documentation)
 /docs/
+
+# Development documentation (keep in repo but ignore in releases)
+PRE_COMMIT_CHECK.md
+*_REPORT.md
+*_TEST.md
+*_GUIDE.md
+*_PLAN.md
+*_SUMMARY.md
+*_CHECKLIST.md
+*_NOTES.md
+*_STATUS.md

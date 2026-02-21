@@ -29,7 +29,9 @@
 
 ## 🎯 快速开始
 
-### 构建
+### 方式 1: MCP 客户端使用（推荐）
+
+#### 1. 构建 JAR 包
 
 ```bash
 git clone https://github.com/itxaiohanglover/mcp-codestyle-server.git
@@ -37,7 +39,9 @@ cd mcp-codestyle-server
 mvn clean package -DskipTests
 ```
 
-### MCP 客户端配置
+#### 2. 配置 MCP 客户端
+
+在 MCP 客户端（如 Cherry Studio、Cursor）中添加配置：
 
 ```json
 {
@@ -56,6 +60,101 @@ mvn clean package -DskipTests
   }
 }
 ```
+
+**配置示例**：
+
+<div align="center">
+  <img src="img/screenshot-mcp-TRAE配置.png" alt="MCP 配置" width="600"/>
+  <p><i>MCP 客户端配置示例</i></p>
+</div>
+
+#### 3. 安装后效果
+
+配置完成后，MCP 服务器会自动启动：
+
+<div align="center">
+  <img src="img/screenshot-mcp安装后.png" alt="安装后效果" width="600"/>
+  <p><i>MCP 服务器成功启动</i></p>
+</div>
+
+#### 4. 搜索模板
+
+使用 `codestyleSearch` 工具搜索模板：
+
+<div align="center">
+  <img src="img/screenshot-search.png" alt="搜索模板" width="600"/>
+  <p><i>搜索 CRUD 模板示例</i></p>
+</div>
+
+#### 5. 生成代码
+
+使用 `getTemplateByPath` 获取模板并生成代码：
+
+<div align="center">
+  <img src="img/screenshot-generate.png" alt="生成代码" width="600"/>
+  <p><i>根据模板生成代码</i></p>
+</div>
+
+### 方式 2: Claude Skill 使用
+
+详见 [Codestyle Skill 文档](skill/README.md)
+
+---
+
+---
+
+## 📖 使用教程
+
+### 从市场安装（推荐）
+
+#### 1. 在 MCP 市场搜索
+
+<div align="center">
+  <img src="img/screenshot-mcp市场搜索.png" alt="市场搜索" width="600"/>
+  <p><i>在 MCP 市场搜索 "codestyle"</i></p>
+</div>
+
+#### 2. 一键安装
+
+点击安装按钮，系统会自动配置 MCP 服务器。
+
+#### 3. 开始使用
+
+安装完成后，即可在对话中使用代码模板功能。
+
+### 完整使用流程
+
+#### 步骤 1: 搜索模板
+
+在对话中说：
+```
+帮我搜索 CRUD 模板
+```
+
+系统会调用 `codestyleSearch` 工具，返回匹配的模板列表和目录结构。
+
+#### 步骤 2: 选择模板
+
+根据搜索结果，选择需要的模板路径，例如：
+```
+continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller/Controller.ftl
+```
+
+#### 步骤 3: 生成代码
+
+系统会自动调用 `getTemplateByPath` 获取模板内容，并根据你的需求生成代码。
+
+#### 步骤 4: 自定义参数
+
+根据模板变量说明，提供必要的参数：
+- `packageName`: 包名（如：com.example.user）
+- `className`: 类名（如：UserController）
+- `tableName`: 表名（如：t_user）
+- 等等...
+
+系统会自动填充模板并生成完整的代码。
+
+---
 
 ## 🔧 配置说明
 
@@ -125,22 +224,6 @@ repository:
 # 启动命令
 java -jar codestyle-server.jar --spring.profiles.active=prod
 ```
-
-#### 使用配置中心（推荐）
-
-如果使用 Spring Cloud Config 或 Nacos：
-
-```yaml
-# bootstrap.yml
-spring:
-  cloud:
-    config:
-      uri: http://config-server:8888
-      name: mcp-codestyle-server
-      profile: ${SPRING_PROFILES_ACTIVE:dev}
-```
-
-配置中心统一管理 `access-key` 和 `secret-key`，避免敏感信息泄露。
 
 ### 获取 Access Key 和 Secret Key
 
@@ -245,8 +328,6 @@ A: 系统会自动降级到本地 Lucene 检索
 
 ## 📝 更新日志
 
-查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新记录。
-
 ### 最新版本 v1.0.0 (2026-02-21)
 
 **核心功能**：
@@ -266,13 +347,6 @@ A: 系统会自动降级到本地 Lucene 检索
 ## 📄 许可证
 
 [MIT License](LICENSE)
-
-## 👥 作者
-
-- artboy (itxaiohanglover)
-- Kanttha
-- movclantian
-- cris_tofu (gccszs)
 
 ## 🔗 相关链接
 
