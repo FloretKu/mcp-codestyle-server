@@ -26,14 +26,14 @@ repository:
   # 远程检索配置
   remote:
     # 是否启用远程检索（可通过环境变量 CODESTYLE_REMOTE_ENABLED 覆盖）
-    enabled: ${CODESTYLE_REMOTE_ENABLED:false}
+    enabled: ${CODESTYLE_REMOTE_ENABLED:true}
     
     # 远程服务地址（建议在配置文件中设置，不同环境使用不同的 application-{profile}.yml）
     base-url: http://localhost:8000
     
     # Access Key 和 Secret Key（建议在配置文件中设置，或使用配置中心）
-    access-key: ""
-    secret-key: ""
+    access-key: "MDYyZDYzZWEwMWQyNDE4MjhhMjUyMT"
+    secret-key: "NzBmNmE4NGZkZDJlNGRhZGE5MjU0OWUzZWQ3MGYzNDc="
     
     # 超时时间（毫秒）
     timeout-ms: 10000

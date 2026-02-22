@@ -182,7 +182,12 @@ public class CodestyleClient {
             String body = response.body();
             Map<String, Object> result = JSONUtil.toBean(body, Map.class);
             
-            if (!"200".equals(String.valueOf(result.get("code")))) {
+            // ContiNew 框架返回的成功码是 "0"，不是 "200"
+            String code = String.valueOf(result.get("code"));
+            Boolean success = (Boolean) result.get("success");
+            
+            // 优先判断 success 字段，兼容判断 code
+            if ((success != null && !success) || (!"0".equals(code) && !"200".equals(code))) {
                 throw new top.codestyle.mcp.exception.RemoteSearchException(
                     top.codestyle.mcp.exception.RemoteSearchException.ErrorCode.SERVER_ERROR,
                     "检索失败: " + result.get("msg")
@@ -217,27 +222,33 @@ public class CodestyleClient {
     /**
      * 生成 ContiNew Open API 签名
      * 
-     * 签名算法（参考 ContiNew 文档）：
+     * 签名算法：
      * 1. 将所有参数（除 sign）按 key 字典序排序（TreeMap 自动排序）
-     * 2. 拼接成 key1=value1&key2=value2 格式
-     * 3. 追加 &key=secretKey（注意：是 key，不是 secretKey）
+     * 2. 添加 key=secretKey 参数
+     * 3. 拼接成 key1=value1&key2=value2 格式（最后没有 "&"）
      * 4. MD5 加密（32位小写）
      * 
      * @param params    请求参数（已排序）
      * @param secretKey Secret Key
-     * @return 签名字符串（小写）
+     * @return 签名字符串（32位小写 MD5）
      */
     private static String generateSignature(Map<String, String> params, String secretKey) {
-        // 1. 拼接参数字符串
+        // 1. 添加 key 参数（与 ContiNew 标准保持一致）
+        Map<String, String> allParams = new TreeMap<>(params);
+        allParams.put("key", secretKey);
+        
+        // 2. 字典序排序并拼接（标准格式：key1=value1&key2=value2）
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : params.entrySet()) {
+        boolean first = true;
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
             if (!"sign".equals(entry.getKey())) {
-                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
+                if (!first) {
+                    sb.append("&");  // ← 修复：只在非第一个参数前添加 "&"
+                }
+                sb.append(entry.getKey()).append("=").append(entry.getValue());
+                first = false;
             }
         }
-        
-        // 2. 追加 key=secretKey（ContiNew 标准）
-        sb.append("key=").append(secretKey);
         
         // 3. MD5 加密（32位小写）
         return DigestUtil.md5Hex(sb.toString());
@@ -245,31 +256,60 @@ public class CodestyleClient {
 
     /**
      * 转换远程检索结果为统一格式
+     * 安全处理 null 值，避免 JSONNull 类型转换异常
      */
     private static RemoteSearchResult convertToRemoteSearchResult(Map<String, Object> data) {
         RemoteSearchResult result = new RemoteSearchResult();
-        result.setId((String) data.get("id"));
-        result.setTitle((String) data.get("title"));
-        result.setSnippet((String) data.get("snippet"));
-        result.setContent((String) data.get("content"));
-        result.setScore(((Number) data.get("score")).doubleValue());
-        result.setHighlight((String) data.get("highlight"));
         
-        // MCP 必要字段
-        result.setGroupId((String) data.get("groupId"));
-        result.setArtifactId((String) data.get("artifactId"));
-        result.setVersion((String) data.get("version"));
-        result.setFileType((String) data.get("fileType"));
+        // 安全获取字符串字段（处理 null 和 JSONNull）
+        result.setId(getStringValue(data, "id"));
+        result.setTitle(getStringValue(data, "title"));
+        result.setSnippet(getStringValue(data, "snippet"));
+        result.setContent(getStringValue(data, "content"));
+        result.setHighlight(getStringValue(data, "highlight"));
         
-        // 从 metadata 提取非索引字段
-        Map<String, Object> metadata = (Map<String, Object>) data.get("metadata");
-        if (metadata != null) {
-            result.setFilePath((String) metadata.get("filePath"));
-            result.setFilename((String) metadata.get("filename"));
-            result.setSha256((String) metadata.get("sha256"));
+        // 安全获取数值字段
+        Object scoreObj = data.get("score");
+        if (scoreObj instanceof Number) {
+            result.setScore(((Number) scoreObj).doubleValue());
+        } else {
+            result.setScore(0.0);
         }
         
+        // MCP 必要字段
+        result.setGroupId(getStringValue(data, "groupId"));
+        result.setArtifactId(getStringValue(data, "artifactId"));
+        result.setVersion(getStringValue(data, "version"));
+        result.setFileType(getStringValue(data, "fileType"));
+        
+        // 从 metadata 提取非索引字段
+        Object metadataObj = data.get("metadata");
+        if (metadataObj instanceof Map) {
+            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+            result.setFilePath(getStringValue(metadata, "filePath"));
+            result.setFilename(getStringValue(metadata, "filename"));
+            result.setSha256(getStringValue(metadata, "sha256"));
+        }
+        
+        // 注意：不再使用 ES 中的 downloadUrl 字段，统一由 getDownloadUrl() 方法生成
+        // 这样可以避免 ES 中存储的旧 URL（/api/file/download）导致的 404 问题
+        
         return result;
+    }
+    
+    /**
+     * 安全获取字符串值，处理 null 和 JSONNull
+     */
+    private static String getStringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null || "null".equals(String.valueOf(value))) {
+            return null;
+        }
+        // 处理 JSONNull 类型
+        if (value.getClass().getSimpleName().equals("JSONNull")) {
+            return null;
+        }
+        return String.valueOf(value);
     }
 
     /**
@@ -339,7 +379,7 @@ public class CodestyleClient {
          */
         public String getDownloadUrl(String baseUrl) {
             if (groupId != null && artifactId != null && version != null) {
-                return String.format("%s/api/file/download?groupId=%s&artifactId=%s&version=%s",
+                return String.format("%s/open-api/template/download?groupId=%s&artifactId=%s&version=%s",
                     baseUrl, groupId, artifactId, version);
             }
             return null;
