@@ -1,5 +1,47 @@
 # Template Syntax & Variables
 
+## Template Directory Structure
+
+Standard template structure with **meta.json in version directory**:
+
+```
+<artifactId>/
+└── <version>/
+    ├── meta.json          # Required: template metadata
+    ├── <filePath>/
+    │   └── <filename>.ftl # Template files
+    └── ...
+```
+
+### Example
+
+```
+CRUD/
+└── 1.0.0/
+    ├── meta.json
+    ├── backend/
+    │   ├── sql/Menu.ftl
+    │   └── src/main/java/controller/Controller.ftl
+    └── frontend/
+        └── src/api/api.ftl
+```
+
+### Full Path Format
+
+```
+<artifactId>/<version>/<filePath>/<filename>.ftl
+```
+
+Example: `CRUD/1.0.0/backend/sql/Menu.ftl`
+
+Where:
+- `artifactId`: `CRUD`
+- `version`: `1.0.0`
+- `filePath`: `/backend/sql`
+- `filename`: `Menu.ftl`
+
+---
+
 ## Command Output Formats
 
 ### search Response

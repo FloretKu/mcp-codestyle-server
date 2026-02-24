@@ -6,8 +6,8 @@ import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
-import top.codestyle.mcp.model.meta.LocalMetaInfo;
-import top.codestyle.mcp.model.sdk.MetaInfo;
+import top.codestyle.mcp.model.template.TemplateMetaInfo;
+import top.codestyle.mcp.model.remote.RemoteSearchResult;
 import top.codestyle.mcp.model.tree.TreeNode;
 import top.codestyle.mcp.util.CodestyleClient;
 import top.codestyle.mcp.util.PromptUtils;
@@ -51,7 +51,7 @@ public class CodestyleService {
         try {
             // 远程检索模式
             if (templateService.isRemoteSearchEnabled()) {
-                List<CodestyleClient.RemoteSearchResult> remoteResults = templateService.searchFromRemote(templateKeyword);
+                List<RemoteSearchResult> remoteResults = templateService.searchFromRemote(templateKeyword);
 
                 // 远程返回空结果，自动fallback到本地Lucene检索
                 if (remoteResults.isEmpty()) {
@@ -60,12 +60,12 @@ public class CodestyleService {
 
                 // 单个结果：精确匹配，下载到本地并返回目录树
                 if (remoteResults.size() == 1) {
-                    CodestyleClient.RemoteSearchResult result = remoteResults.get(0);
+                    RemoteSearchResult result = remoteResults.get(0);
                     
                     // 下载模板
                     templateService.downloadTemplate(result);
 
-                    List<MetaInfo> metaInfos = templateService.searchLocalRepository(
+                    List<top.codestyle.mcp.model.template.TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
                             result.getGroupId(), result.getArtifactId());
                     
                     if (metaInfos.isEmpty()) {
@@ -116,7 +116,7 @@ public class CodestyleService {
 
         // 单模板结果
         LuceneIndexService.SearchResult searchResult = searchResults.get(0);
-        List<MetaInfo> metaInfos = templateService.searchLocalRepository(
+        List<top.codestyle.mcp.model.template.TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
                 searchResult.groupId(), searchResult.artifactId());
 
         if (metaInfos.isEmpty()) {
@@ -142,7 +142,7 @@ public class CodestyleService {
             throws IOException {
 
         // 使用精确路径搜索模板
-        LocalMetaInfo matchedTemplate = templateService.searchByPath(templatePath);
+        top.codestyle.mcp.model.template.TemplateContent matchedTemplate = templateService.searchByPath(templatePath);
 
         // 校验搜索结果
         if (matchedTemplate == null) {
@@ -169,5 +169,198 @@ public class CodestyleService {
                 templatePath,
                 varInfo,
                 matchedTemplate.getTemplateContent() != null ? matchedTemplate.getTemplateContent() : "");
+    }
+
+    /**
+     * 从文件系统上传模板到本地仓库或远程服务器
+     * <p>本地模式：复制到本地缓存并重建索引
+     * <p>远程模式：复制到本地缓存、上传到远程服务器并重建索引
+     *
+     * @param sourcePath 文件系统路径，如: E:/templates/CRUD
+     * @param groupId 组ID，如: continew
+     * @param artifactId 项目ID，如: CRUD
+     * @param version 版本号，如: 1.0.0
+     * @param overwrite 是否覆盖已存在的版本（可选，默认 false）
+     * @return 上传结果信息字符串
+     */
+    @McpTool(name = "uploadTemplateFromFileSystem", description = """
+            从文件系统上传模板到本地仓库或远程服务器。
+            本地模式：复制到本地缓存并重建索引。
+            远程模式：复制到本地缓存、上传到远程服务器并重建索引。
+            """)
+    public String uploadTemplateFromFileSystem(
+            @McpToolParam(description = "文件系统路径，如: E:/templates/CRUD") 
+            String sourcePath,
+            @McpToolParam(description = "组ID，如: continew") 
+            String groupId,
+            @McpToolParam(description = "项目ID，如: CRUD") 
+            String artifactId,
+            @McpToolParam(description = "版本号，如: 1.0.0") 
+            String version,
+            @McpToolParam(description = "是否覆盖已存在的版本（可选，默认 false）") 
+            Boolean overwrite) {
+        try {
+            boolean shouldOverwrite = overwrite != null && overwrite;
+            
+            // 判断是否启用远程模式
+            if (templateService.isRemoteSearchEnabled()) {
+                // 远程模式：上传到远程服务器
+                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                    templateService.uploadTemplateFromFileSystemRemote(sourcePath, groupId, artifactId, version, shouldOverwrite);
+                
+                return String.format("""
+                    ✓ 模板已上传
+                    - 源路径: %s
+                    - 本地路径: %s
+                    - 远程 ID: %s
+                    - 文件数: %d
+                    - 索引已更新
+                    """,
+                    sourcePath,
+                    result.getLocalPath(),
+                    result.getRemoteId(),
+                    result.getFileCount()
+                );
+            } else {
+                // 本地模式：只保存到本地
+                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                    templateService.saveTemplateFromFileSystemLocal(sourcePath, groupId, artifactId, version, shouldOverwrite);
+                
+                return String.format("""
+                    ✓ 模板已保存到本地
+                    - 源路径: %s
+                    - 本地路径: %s
+                    - 文件数: %d
+                    - 索引已更新
+                    """,
+                    sourcePath,
+                    result.getLocalPath(),
+                    result.getFileCount()
+                );
+            }
+        } catch (IllegalArgumentException e) {
+            return "✗ 上传失败: " + e.getMessage();
+        } catch (IOException e) {
+            return "✗ 上传失败: " + e.getMessage();
+        } catch (Exception e) {
+            return "✗ 上传失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 上传模板到本地仓库或远程服务器
+     * <p>本地模式：保存到本地缓存并重建索引
+     * <p>远程模式：保存到本地缓存、上传到远程服务器并重建索引
+     *
+     * @param templatePath 模板路径，格式: groupId/artifactId/version，如: continew/CRUD/1.0.0
+     * @param overwrite 是否覆盖已存在的版本（可选，默认 false）
+     * @return 上传结果信息字符串
+     */
+    @McpTool(name = "uploadTemplate", description = """
+            上传模板到本地仓库或远程服务器。
+            本地模式：保存到本地缓存并重建索引。
+            远程模式：保存到本地缓存、上传到远程服务器并重建索引。
+            """)
+    public String uploadTemplate(
+            @McpToolParam(description = "模板路径，格式: groupId/artifactId/version，如: continew/CRUD/1.0.0") 
+            String templatePath,
+            @McpToolParam(description = "是否覆盖已存在的版本（可选，默认 false）") 
+            Boolean overwrite) {
+        try {
+            boolean shouldOverwrite = overwrite != null && overwrite;
+            
+            // 判断是否启用远程模式
+            if (templateService.isRemoteSearchEnabled()) {
+                // 远程模式：上传到远程服务器
+                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                    templateService.uploadTemplateRemote(templatePath, shouldOverwrite);
+                
+                return String.format("""
+                    ✓ 模板已上传
+                    - 本地路径: %s
+                    - 远程 ID: %s
+                    - 文件数: %d
+                    - 索引已更新
+                    """,
+                    result.getLocalPath(),
+                    result.getRemoteId(),
+                    result.getFileCount()
+                );
+            } else {
+                // 本地模式：只保存到本地
+                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                    templateService.saveTemplateLocal(templatePath, shouldOverwrite);
+                
+                return String.format("""
+                    ✓ 模板已保存到本地
+                    - 路径: %s
+                    - 文件数: %d
+                    - 索引已更新
+                    """,
+                    result.getLocalPath(),
+                    result.getFileCount()
+                );
+            }
+        } catch (IllegalArgumentException e) {
+            return "✗ 上传失败: " + e.getMessage();
+        } catch (IOException e) {
+            return "✗ 上传失败: " + e.getMessage();
+        } catch (Exception e) {
+            return "✗ 上传失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 删除指定版本的模板
+     * <p>本地模式：删除本地缓存并重建索引
+     * <p>远程模式：删除本地缓存、删除远程模板并重建索引
+     *
+     * @param templatePath 模板路径，格式: groupId/artifactId/version，如: continew/CRUD/1.0.0
+     * @return 删除结果信息字符串
+     */
+    @McpTool(name = "deleteTemplate", description = """
+            删除指定版本的模板。
+            本地模式：删除本地缓存并重建索引。
+            远程模式：删除本地缓存、删除远程模板并重建索引。
+            """)
+    public String deleteTemplate(
+            @McpToolParam(description = "模板路径，格式: groupId/artifactId/version，如: continew/CRUD/1.0.0") 
+            String templatePath) {
+        try {
+            // 判断是否启用远程模式
+            if (templateService.isRemoteSearchEnabled()) {
+                // 远程模式：删除远程模板
+                top.codestyle.mcp.model.local.LocalDeleteResult result = 
+                    templateService.deleteTemplateRemote(templatePath);
+                
+                return String.format("""
+                    ✓ 模板已删除
+                    - 本地路径: %s/%s/%s
+                    - 远程 ID: %s/%s/%s
+                    - 索引已更新
+                    """,
+                    result.getGroupId(), result.getArtifactId(), result.getVersion(),
+                    result.getGroupId(), result.getArtifactId(), result.getVersion()
+                );
+            } else {
+                // 本地模式：只删除本地
+                top.codestyle.mcp.model.local.LocalDeleteResult result = 
+                    templateService.deleteTemplateLocal(templatePath);
+                
+                return String.format("""
+                    ✓ 模板已删除
+                    - 路径: %s/%s/%s
+                    - 索引已更新
+                    """,
+                    result.getGroupId(), result.getArtifactId(), result.getVersion()
+                );
+            }
+        } catch (IllegalArgumentException e) {
+            return "✗ 删除失败: " + e.getMessage();
+        } catch (IOException e) {
+            return "✗ 删除失败: " + e.getMessage();
+        } catch (Exception e) {
+            return "✗ 删除失败: " + e.getMessage();
+        }
     }
 }

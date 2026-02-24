@@ -1,179 +1,140 @@
 ---
 name: codestyle
-description: Code template search and generation tool. Auto-initializes on first use with minimal user interaction.
+description: |
+  Code template search and generation tool. Auto-initializes on first use.
+  
+  Use when:
+  1. search/get - user needs code templates, "检索模板", "search template"
+  2. generate - user wants to create template from code/file/repo/url, "生成模板"
+  3. upload - user has prepared template files, "上传模板"
+  
+  Requirements: JDK 17+, Git (for first-time setup)
 ---
 
 # Codestyle
 
-Code template retrieval and generation via jar-based CLI tool.
+Code template management: CLI tools for search/get/upload + AI-guided generation.
 
-## IMPORTANT: Command Execution
+## Decision Tree
 
-### Windows
-
-**Method 1: Direct execution (Recommended for Claude)**
-```bash
-"<SKILL_DIR>\scripts\codestyle.bat" search "keyword"
 ```
-
-**Method 2: With cmd.exe (For manual use)**
-```bash
-cmd.exe /c "<SKILL_DIR>\scripts\codestyle.bat search \"keyword\""
+User request
+    │
+    ├─ "search" / "检索" ──→ Search Workflow (CLI, local+remote)
+    │
+    ├─ "get" / "获取" ──→ Get Workflow (CLI, local+remote)
+    │
+    ├─ "generate" / "生成" ──→ Generate Workflow (AI dialog, then upload)
+    │
+    └─ "upload" / "上传" ──→ Upload Workflow (CLI, remote)
 ```
-
-**Example:**
-```bash
-# Claude should use this format
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" search "CRUD"
-
-# Or this format
-C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat search CRUD
-```
-
-### Linux/macOS
-```bash
-bash <SKILL_DIR>/scripts/codestyle search "keyword"
-```
-
-### Important Notes
-
-- **For Claude/AI**: Use direct path without `cmd.exe /c` to avoid output buffering
-- **For manual use**: Both methods work, but direct execution is faster
-- **Quotes**: Use quotes around paths with spaces, keywords usually don't need quotes
-
-## Workflow
-
-### First-Time Use (Automatic)
-
-When user first runs a command, the script will:
-1. Detect no `.initialized` marker
-2. Show: `[Codestyle] 首次使用，正在初始化...`
-3. Auto-download JAR (if needed)
-4. Auto-clone repository (silent)
-5. Create `.initialized` marker
-6. Execute the original command
-
-**No user confirmation needed** - fully automatic.
-
-### Subsequent Use
-
-Direct execution, no initialization overhead.
 
 ## Commands
 
-### Search templates
+| Command | Execution | Description |
+|---------|-----------|-------------|
+| `search` | CLI (JAR) | Search templates (local Lucene + remote API) |
+| `get` | CLI (JAR) | Get full template content |
+| `generate` | AI Dialog | Multi-turn conversation, then call upload |
+| `upload` | CLI (JAR) | Upload template to server |
 
-**Windows (for Claude):**
+## Quick Start
+
+### Windows
+
 ```bash
 "<SKILL_DIR>\scripts\codestyle.bat" search "keyword"
+"<SKILL_DIR>\scripts\codestyle.bat" get "template-path"
+"<SKILL_DIR>\scripts\codestyle.bat" upload --path ./my-template
 ```
 
-**Linux/macOS:**
+### Linux/macOS
+
 ```bash
 bash <SKILL_DIR>/scripts/codestyle search "keyword"
+bash <SKILL_DIR>/scripts/codestyle get "template-path"
+bash <SKILL_DIR>/scripts/codestyle upload --path ./my-template
 ```
 
-**Examples:**
-```bash
-# Search CRUD
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" search "CRUD"
+### Generate (AI Dialog)
 
-# Search login  
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" search "login"
-
-# Search by group
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" search "continew/crud-plus"
+```
+User: 把这段代码做成模板：[代码]
+AI: [多轮对话引导生成模板]
+AI: [调用 upload 存储]
 ```
 
-### Get template
+## Workflows
 
-**Windows (for Claude):**
-```bash
-"<SKILL_DIR>\scripts\codestyle.bat" get "path"
-```
+See references/ for detailed workflow instructions:
 
-**Linux/macOS:**
-```bash
-bash <SKILL_DIR>/scripts/codestyle get "path"
-```
+- **[Search Workflow](references/search-workflow.md)** - Find templates (local+remote)
+- **[Get Workflow](references/get-workflow.md)** - Retrieve template content by full path
+- **[Generate Workflow](references/generate-workflow.md)** - AI-guided template creation
+- **[Upload Workflow](references/upload-workflow.md)** - Submit templates (remote)
 
-**Example:**
-```bash
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" get "continew/crud-plus/1.0.0/src/main/java/controller/Controller.ftl"
-```
+### Generate Workflow Overview
 
-## Search Strategy
+Generate workflow is **pure AI dialog**, no script calls until final upload.
 
-| User Request | Search Keywords |
-|--------------|----------------|
-| "create CRUD" | `CRUD` → `controller` → `continew/crud-plus` |
-| "create login" | `login` → `auth` → `user` |
-| "generate export" | `export` → `excel` → `download` |
+| Input | Example | Pre-processing |
+|-------|---------|----------------|
+| Code snippet | `@RestController ...` | None |
+| Current file | "当前这个文件" | Read file |
+| Local path | `/path/to/file.java` | Read file |
+| GitHub URL | `https://github.com/xxx/repo` | Clone repo |
+| Web URL | `https://blog.xxx.com/...` | Crawl content |
 
-JAR provides intelligent suggestions if no match found.
+Process: `识别输入 → 预处理 → 分析结构 → 选择模板 → AI生成 → 去重检测 → 用户确认 → 调用upload`
+
+## First-Time Use
+
+Automatic initialization on first command:
+
+1. Detect no `.initialized` marker
+2. Download JAR file (if needed)
+3. Clone template repository
+4. Create `.initialized` marker
+5. Execute original command
 
 ## Configuration
 
-Default config (`scripts/cfg.json`):
-```json
-{
-  "repository": {
-    "local-path": "~/.codestyle/cache",
-    "remote": {
-      "enabled": false
-    }
-  }
-}
+See [references/config.md](references/config.md) for configuration options.
+
+## Template Format
+
+### Directory Structure
+
+Standard template structure with **meta.json in version directory**:
+
+```
+<artifactId>/
+└── <version>/
+    ├── meta.json          # Template metadata (required)
+    ├── README.md          # Documentation (optional)
+    └── <subdirectories>   # Template files (.ftl)
 ```
 
-## Troubleshooting
+Example:
 
-### Command not found or timeout
-
-**Problem**: Command times out or shows no output when using `cmd.exe /c`
-
-**Solution**: Use direct path execution instead:
-```bash
-# Instead of this (may timeout in Claude)
-cmd.exe /c "C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat search \"CRUD\""
-
-# Use this (works in Claude)
-"C:\Users\artboy\.claude\skills\codestyle\scripts\codestyle.bat" search "CRUD"
+```
+CRUD/
+└── 1.0.0/
+    ├── meta.json
+    ├── README.md
+    ├── backend/
+    │   ├── sql/Menu.ftl
+    │   └── src/main/java/...
+    └── frontend/
+        └── src/...
 ```
 
-**Reason**: `cmd.exe /c` causes output buffering in bash environments, leading to timeouts.
+See [references/template-format.md](references/template-format.md) for complete format specification.
 
-### Repository clone fails
-
-**Manual fix:**
-1. Download: https://github.com/itxaiohanglover/codestyle-repository/archive/refs/heads/main.zip
-2. Extract to: `~/.codestyle/cache/codestyle-cache`
-3. Re-run command
-
-### Java not found
-
-Install Java 17+:
-- Windows: https://adoptium.net/
-- macOS: `brew install openjdk@17`
-- Linux: `sudo apt install openjdk-17-jdk`
-
-### Git not found
-
-Install Git:
-- Windows: https://git-scm.com/download/win
-- macOS: `brew install git`
-- Linux: `sudo apt install git`
-
-## Reference Files
-
-| File | Purpose |
-|------|---------|
-| [references/config.md](references/config.md) | Configuration options |
-| [references/template-syntax.md](references/template-syntax.md) | Template syntax |
-| [references/search-guide.md](references/search-guide.md) | Search strategies |
+See [references/template-syntax.md](references/template-syntax.md) for template syntax.
 
 ## Requirements
 
 - JDK 17+
-- Git 2.0+ (for first-time setup)
-- Internet connection (for first-time setup)
+- Git 2.0+ (for first-time setup and repo cloning)
+- Internet connection (for remote API calls)

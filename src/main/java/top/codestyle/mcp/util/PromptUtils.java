@@ -1,6 +1,6 @@
 package top.codestyle.mcp.util;
 
-import top.codestyle.mcp.model.sdk.MetaInfo;
+import top.codestyle.mcp.model.template.TemplateMetaInfo;
 import top.codestyle.mcp.model.tree.TreeNode;
 
 import java.util.HashMap;
@@ -22,12 +22,12 @@ public class PromptUtils {
      * @param list 模板元信息列表
      * @return 目录树根节点
      */
-    public static TreeNode buildTree(List<MetaInfo> list) {
+    public static TreeNode buildTree(List<TemplateMetaInfo> list) {
         TreeNode root = new TreeNode("");
         Map<String, TreeNode> cache = new HashMap<>();
         cache.put("", root);
 
-        for (MetaInfo t : list) {
+        for (TemplateMetaInfo t : list) {
             // 构建完整路径(格式: groupId/artifactId/version/filePath)
             String fullPath = t.getGroupId() + "/" + t.getArtifactId() + "/" +
                     t.getVersion() + t.getFilePath();

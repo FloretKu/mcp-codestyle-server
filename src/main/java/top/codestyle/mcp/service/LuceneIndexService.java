@@ -16,7 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
-import top.codestyle.mcp.model.meta.LocalMetaConfig;
+import top.codestyle.mcp.model.template.TemplateMetaConfig;
 import top.codestyle.mcp.util.CodestyleClient;
 
 import java.io.File;
@@ -103,43 +103,35 @@ public class LuceneIndexService {
     }
 
     /**
-     * 扫描并索引模板
+     * 扫描并索引模板（递归扫描所有 meta.json）
      *
      * @param writer   索引写入器
      * @param basePath 基础路径
      * @throws IOException 扫描失败
      */
     private void scanAndIndexTemplates(IndexWriter writer, String basePath) throws IOException {
-        var baseDir = new File(basePath);
-        if (!baseDir.isDirectory())
+        Path basePathObj = Paths.get(basePath);
+        if (!Files.exists(basePathObj) || !Files.isDirectory(basePathObj)) {
             return;
-        var groupDirs = baseDir.listFiles(File::isDirectory);
-        if (groupDirs == null)
-            return;
+        }
 
-        for (var groupDir : groupDirs) {
-            if (INDEX_DIR.equals(groupDir.getName()))
-                continue;
-            var artifactDirs = groupDir.listFiles(File::isDirectory);
-            if (artifactDirs == null)
-                continue;
-            for (var artifactDir : artifactDirs) {
-                var metaFile = new File(artifactDir, "meta.json");
-                if (metaFile.exists())
-                    indexTemplate(writer, metaFile);
-            }
+        // 递归查找所有 meta.json 文件
+        try (var stream = Files.walk(basePathObj)) {
+            stream.filter(p -> p.getFileName().toString().equals("meta.json"))
+                  .filter(p -> !p.toString().contains(INDEX_DIR))  // 排除索引目录
+                  .forEach(p -> indexTemplate(writer, p.toFile()));
         }
     }
 
     /**
-     * 索引单个模板
+     * 索引单个模板（适配单版本格式）
      *
      * @param writer   索引写入器
      * @param metaFile meta.json文件
      */
     private void indexTemplate(IndexWriter writer, File metaFile) {
         try {
-            var meta = JSONUtil.toBean(FileUtil.readUtf8String(metaFile), LocalMetaConfig.class);
+            var meta = JSONUtil.toBean(FileUtil.readUtf8String(metaFile), TemplateMetaConfig.class);
             var desc = readDescription(metaFile.getParentFile(), meta);
             var pathKeywords = extractPathKeywords(meta);
             writer.addDocument(createDoc(meta.getGroupId(), meta.getArtifactId(), desc, pathKeywords, metaFile.getAbsolutePath()));
@@ -149,39 +141,40 @@ public class LuceneIndexService {
     }
 
     /**
-     * 提取路径关键词
+     * 提取路径关键词（适配单版本格式）
      * 从meta.json中提取所有文件路径的目录名作为关键词
      *
      * @param meta 元配置
      * @return 路径关键词字符串
      */
-    private String extractPathKeywords(LocalMetaConfig meta) {
+    private String extractPathKeywords(TemplateMetaConfig meta) {
         List<String> paths = new ArrayList<>();
-        if (meta.getConfigs() != null) {
-            for (var config : meta.getConfigs()) {
-                if (config.getFiles() != null) {
-                    for (var file : config.getFiles()) {
-                        paths.add(file.getFilePath());
-                    }
-                }
+        if (meta.getFiles() != null) {
+            for (var file : meta.getFiles()) {
+                paths.add(file.getFilePath());
             }
         }
         return CodestyleClient.extractPathKeywords(paths);
     }
 
     /**
-     * 从README.md读取描述信息
+     * 从README.md读取描述信息（适配单版本格式）
      *
-     * @param artifactDir 模板目录
-     * @param meta        元配置信息
+     * @param versionDir 版本目录（meta.json 所在目录）
+     * @param meta       元配置信息
      * @return 描述内容
      */
-    private String readDescription(File artifactDir, LocalMetaConfig meta) {
-        var configs = meta.getConfigs();
-        if (configs == null || configs.isEmpty())
-            return meta.getArtifactId();
-        var readme = new File(artifactDir, configs.get(configs.size() - 1).getVersion() + File.separator + "README.md");
-        return readme.exists() ? FileUtil.readUtf8String(readme) : meta.getArtifactId();
+    private String readDescription(File versionDir, TemplateMetaConfig meta) {
+        // meta.json 已经在版本目录下，README.md 也在同一目录
+        var readme = new File(versionDir, "README.md");
+        if (readme.exists()) {
+            return FileUtil.readUtf8String(readme);
+        }
+        // 如果没有 README.md，使用 description 字段
+        if (StrUtil.isNotBlank(meta.getDescription())) {
+            return meta.getDescription();
+        }
+        return meta.getArtifactId();
     }
 
     /**

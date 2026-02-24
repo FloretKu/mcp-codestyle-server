@@ -1,5 +1,5 @@
 #!/bin/bash
-# Codestyle CLI Wrapper - 简化版
+# Codestyle CLI Wrapper
 # 静默自动初始化，只在首次使用时提示一次
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

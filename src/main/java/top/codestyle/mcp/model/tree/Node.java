@@ -3,7 +3,7 @@ package top.codestyle.mcp.model.tree;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import top.codestyle.mcp.model.sdk.MetaVariable;
+import top.codestyle.mcp.model.template.TemplateVariable;
 
 import java.util.List;
 
@@ -40,5 +40,5 @@ public class Node {
     /**
      * 输入变量列表
      */
-    public List<MetaVariable> inputVarivales;
+    public List<TemplateVariable> inputVarivales;
 }

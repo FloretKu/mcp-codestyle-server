@@ -20,20 +20,16 @@ logging:
 
 # 仓库配置
 repository:
-  # 本地缓存路径（可通过环境变量 CODESTYLE_CACHE_PATH 覆盖）
-  local-path: ${CODESTYLE_CACHE_PATH:./mcp-cache}
+  # 本地缓存路径（环境变量优先）
+  local-path: ${CODESTYLE_CACHE_PATH:~/.codestyle/cache}
   
   # 远程检索配置
   remote:
-    # 是否启用远程检索（可通过环境变量 CODESTYLE_REMOTE_ENABLED 覆盖）
-    enabled: ${CODESTYLE_REMOTE_ENABLED:true}
+    # 是否启用远程检索（环境变量优先）
+    enabled: ${CODESTYLE_REMOTE_ENABLED:false}
     
-    # 远程服务地址（建议在配置文件中设置，不同环境使用不同的 application-{profile}.yml）
-    base-url: http://localhost:8000
-    
-    # Access Key 和 Secret Key（建议在配置文件中设置，或使用配置中心）
-    access-key: "MDYyZDYzZWEwMWQyNDE4MjhhMjUyMT"
-    secret-key: "NzBmNmE4NGZkZDJlNGRhZGE5MjU0OWUzZWQ3MGYzNDc="
-    
-    # 超时时间（毫秒）
-    timeout-ms: 10000
+    # 以下配置从 cfg.json 读取，这里提供默认值
+    base-url: ${repository.remote.base-url:http://localhost:8000}
+    access-key: ${repository.remote.access-key:}
+    secret-key: ${repository.remote.secret-key:}
+    timeout-ms: ${repository.remote.timeout-ms:10000}

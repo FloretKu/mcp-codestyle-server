@@ -1,26 +1,28 @@
 package top.codestyle.mcp.util;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.ZipUtil;
 import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONUtil;
-import top.codestyle.mcp.model.meta.LocalMetaConfig;
-import top.codestyle.mcp.model.sdk.MetaInfo;
-import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
+import top.codestyle.mcp.model.template.TemplateMetaConfig;
+import top.codestyle.mcp.model.template.TemplateMetaInfo;
+import top.codestyle.mcp.model.remote.RemoteSearchResult;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * CodeStyle 统一客户端
+ * CodeStyle 统一客户端（重构版 - 单版本格式）
  * 提供本地仓库管理、远程检索、模板下载等功能
  *
  * @author CodeStyle Team
@@ -31,24 +33,53 @@ public class CodestyleClient {
     // ==================== 本地仓库管理 ====================
 
     /**
-     * 根据groupId和artifactId搜索指定模板组
+     * 根据 groupId 和 artifactId 搜索指定模板组（返回最新版本）
+     * 
+     * 目录结构: groupId/artifactId/version/meta.json
      *
      * @param groupId          组ID
      * @param artifactId       项目ID
      * @param templateBasePath 模板基础路径
-     * @return 匹配的模板元信息列表
+     * @return 匹配的模板元信息列表（最新版本）
      */
-    public static List<MetaInfo> searchLocalRepository(String groupId, String artifactId, String templateBasePath) {
-        List<MetaInfo> result = new ArrayList<>();
+    public static List<TemplateMetaInfo> searchLocalRepository(String groupId, String artifactId, String templateBasePath) {
+        List<TemplateMetaInfo> result = new ArrayList<>();
         try {
             templateBasePath = normalizePath(templateBasePath);
-            File metaFile = new File(templateBasePath + File.separator + groupId + File.separator + artifactId
-                    + File.separator + "meta.json");
-            if (!metaFile.exists()) {
+            
+            // 查找 groupId/artifactId 目录
+            Path artifactPath = Paths.get(templateBasePath, groupId, artifactId);
+            if (!Files.exists(artifactPath) || !Files.isDirectory(artifactPath)) {
                 return result;
             }
-            List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJsonLatestOnly(metaFile);
-            for (MetaInfo metaInfo : metaInfoList) {
+            
+            // 查找所有版本目录
+            List<String> versions = new ArrayList<>();
+            try (Stream<Path> stream = Files.list(artifactPath)) {
+                versions = stream
+                    .filter(Files::isDirectory)
+                    .map(p -> p.getFileName().toString())
+                    .sorted(Comparator.reverseOrder()) // 降序排序，最新版本在前
+                    .collect(Collectors.toList());
+            }
+            
+            if (versions.isEmpty()) {
+                return result;
+            }
+            
+            // 读取最新版本的 meta.json
+            String latestVersion = versions.get(0);
+            Path metaPath = artifactPath.resolve(latestVersion).resolve("meta.json");
+            
+            if (!Files.exists(metaPath)) {
+                return result;
+            }
+            
+            // 解析 meta.json
+            List<TemplateMetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJson(metaPath.toFile());
+            
+            // 验证模板文件是否存在
+            for (TemplateMetaInfo metaInfo : metaInfoList) {
                 if (isTemplateFileExists(templateBasePath, metaInfo)) {
                     result.add(metaInfo);
                 }
@@ -61,38 +92,51 @@ public class CodestyleClient {
 
     /**
      * 根据精确路径搜索模板
+     * 
+     * 路径格式: groupId/artifactId/version/filePath/filename
      *
-     * @param exactPath        精确路径,格式: groupId/artifactId/version/filePath/filename
+     * @param exactPath        精确路径
      * @param templateBasePath 模板基础路径
      * @return 匹配的模板元信息,未找到返回null
      */
-    public static MetaInfo searchByPath(String exactPath, String templateBasePath) {
+    public static TemplateMetaInfo searchByPath(String exactPath, String templateBasePath) {
         try {
             // 规范化路径
             templateBasePath = normalizePath(templateBasePath);
             String normalizedExactPath = normalizePath(exactPath);
 
-            // 从路径解析 groupId 和 artifactId，直接定位 meta.json
+            // 从路径解析 groupId、artifactId、version
             // 路径格式: groupId/artifactId/version/filePath/filename
             String[] parts = normalizedExactPath.split(Pattern.quote(File.separator));
             if (parts.length < 3) {
                 return null;
             }
+            
             String groupId = parts[0];
             String artifactId = parts[1];
+            String version = parts[2];
 
-            // 直接定位 meta.json 文件
-            File metaFile = new File(templateBasePath + File.separator + groupId + File.separator + artifactId
-                    + File.separator + "meta.json");
-            if (!metaFile.exists()) {
+            // 定位 meta.json 文件（新位置：groupId/artifactId/version/meta.json）
+            Path metaPath = Paths.get(templateBasePath, groupId, artifactId, version, "meta.json");
+            if (!Files.exists(metaPath)) {
                 return null;
             }
 
-            // 在匹配的 meta.json 中查找模板
-            List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJsonLatestOnly(metaFile);
-            for (MetaInfo metaInfo : metaInfoList) {
-                String fullPath = metaInfo.getGroupId() + File.separator + metaInfo.getArtifactId() + File.separator +
-                        metaInfo.getVersion() + metaInfo.getFilePath() + File.separator + metaInfo.getFilename();
+            // 解析 meta.json 并查找匹配的模板
+            List<TemplateMetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJson(metaPath.toFile());
+            for (TemplateMetaInfo metaInfo : metaInfoList) {
+                // 规范化 filePath，移除前导斜杠
+                String filePath = metaInfo.getFilePath();
+                if (filePath.startsWith("/") || filePath.startsWith("\\")) {
+                    filePath = filePath.substring(1);
+                }
+                
+                String fullPath = metaInfo.getGroupId() + File.separator + 
+                                 metaInfo.getArtifactId() + File.separator +
+                                 metaInfo.getVersion() + File.separator +
+                                 filePath + File.separator + 
+                                 metaInfo.getFilename();
+                                 
                 if (normalizePath(fullPath).equals(normalizedExactPath)) {
                     return isTemplateFileExists(templateBasePath, metaInfo) ? metaInfo : null;
                 }
@@ -243,7 +287,7 @@ public class CodestyleClient {
         for (Map.Entry<String, String> entry : allParams.entrySet()) {
             if (!"sign".equals(entry.getKey())) {
                 if (!first) {
-                    sb.append("&");  // ← 修复：只在非第一个参数前添加 "&"
+                    sb.append("&");
                 }
                 sb.append(entry.getKey()).append("=").append(entry.getValue());
                 first = false;
@@ -291,9 +335,6 @@ public class CodestyleClient {
             result.setSha256(getStringValue(metadata, "sha256"));
         }
         
-        // 注意：不再使用 ES 中的 downloadUrl 字段，统一由 getDownloadUrl() 方法生成
-        // 这样可以避免 ES 中存储的旧 URL（/api/file/download）导致的 404 问题
-        
         return result;
     }
     
@@ -312,84 +353,11 @@ public class CodestyleClient {
         return String.valueOf(value);
     }
 
-    /**
-     * 远程检索结果数据模型
-     */
-    public static class RemoteSearchResult {
-        private String id;
-        private String title;
-        private String snippet;
-        private String content;
-        private Double score;
-        private String highlight;
-        
-        // MCP 必要字段
-        private String groupId;
-        private String artifactId;
-        private String version;
-        private String fileType;
-        
-        // 非索引字段
-        private String filePath;
-        private String filename;
-        private String sha256;
-
-        // Getters and Setters
-        public String getId() { return id; }
-        public void setId(String id) { this.id = id; }
-        
-        public String getTitle() { return title; }
-        public void setTitle(String title) { this.title = title; }
-        
-        public String getSnippet() { return snippet; }
-        public void setSnippet(String snippet) { this.snippet = snippet; }
-        
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-        
-        public Double getScore() { return score; }
-        public void setScore(Double score) { this.score = score; }
-        
-        public String getHighlight() { return highlight; }
-        public void setHighlight(String highlight) { this.highlight = highlight; }
-        
-        public String getGroupId() { return groupId; }
-        public void setGroupId(String groupId) { this.groupId = groupId; }
-        
-        public String getArtifactId() { return artifactId; }
-        public void setArtifactId(String artifactId) { this.artifactId = artifactId; }
-        
-        public String getVersion() { return version; }
-        public void setVersion(String version) { this.version = version; }
-        
-        public String getFileType() { return fileType; }
-        public void setFileType(String fileType) { this.fileType = fileType; }
-        
-        public String getFilePath() { return filePath; }
-        public void setFilePath(String filePath) { this.filePath = filePath; }
-        
-        public String getFilename() { return filename; }
-        public void setFilename(String filename) { this.filename = filename; }
-        
-        public String getSha256() { return sha256; }
-        public void setSha256(String sha256) { this.sha256 = sha256; }
-        
-        /**
-         * 生成下载 URL
-         */
-        public String getDownloadUrl(String baseUrl) {
-            if (groupId != null && artifactId != null && version != null) {
-                return String.format("%s/open-api/template/download?groupId=%s&artifactId=%s&version=%s",
-                    baseUrl, groupId, artifactId, version);
-            }
-            return null;
-        }
-    }
-
-    // ==================== 远程模板下载（新版）====================
+    // ==================== 远程模板下载（简化版）====================
 
     /**
      * 下载模板（使用 RemoteSearchResult）
+     * 直接解压到 groupId/artifactId/version/ 目录，无需格式转换
      * 
      * @param localRepoPath 本地仓库路径
      * @param remoteBaseUrl 远程基础URL
@@ -413,9 +381,11 @@ public class CodestyleClient {
                 return false;
             }
             
+            // 创建临时 ZIP 文件
             File zipFile = FileUtil.createTempFile("template-", ".zip", true);
             IoUtil.copy(response.bodyStream(), FileUtil.getOutputStream(zipFile));
             
+            // 解压到目标目录：groupId/artifactId/
             String targetPath = localRepoPath + File.separator + 
                                result.getGroupId() + File.separator + 
                                result.getArtifactId();
@@ -424,98 +394,6 @@ public class CodestyleClient {
             FileUtil.del(zipFile);
             
             return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    // ==================== 远程模板下载（兼容旧版）====================
-
-    /**
-     * 从远程仓库搜索模板（兼容旧版 API）
-     * 支持重试机制，最多重试3次
-     *
-     * @param remoteBaseUrl 远程仓库基础URL
-     * @param query         模板关键词,如: RuoYi, CRUD, continew/CRUD
-     * @param apiKey        API Key（必填）
-     * @param timeoutMs     超时时间（毫秒）
-     * @return 远程模板配置列表
-     */
-    public static List<RemoteMetaConfig> fetchRemoteMetaConfig(String remoteBaseUrl, String query, String apiKey, int timeoutMs) {
-        if (StrUtil.isBlank(apiKey)) {
-            throw new RuntimeException("API Key 未配置");
-        }
-        int maxRetries = 3;
-        int baseDelay = 200;
-        for (int i = 0; i < maxRetries; i++) {
-            try {
-                HttpRequest request = HttpRequest.get(remoteBaseUrl + "/api/mcp/search")
-                        .form("query", query)
-                        .timeout(timeoutMs)
-                        .header("User-Agent", "MCP-CodeStyle-Server/1.0.2")
-                        .header("Authorization", "Bearer " + apiKey);
-                HttpResponse response = request.execute();
-                int status = response.getStatus();
-                if (status == 401) {
-                    throw new RuntimeException("API Key 无效或已过期");
-                }
-                if (status == 403) {
-                    throw new RuntimeException("API Key 权限不足");
-                }
-                if (status != 200) {
-                    throw new RuntimeException("远程服务器返回错误: " + status);
-                }
-                return JSONUtil.toList(response.body(), RemoteMetaConfig.class);
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                if (i == maxRetries - 1) {
-                    return Collections.emptyList();
-                }
-                ThreadUtil.sleep(baseDelay * (1 << i));
-            }
-        }
-        return Collections.emptyList();
-    }
-
-    /**
-     * 智能下载或更新模板
-     * 通过SHA256哈希值判断是否需要更新,下载ZIP并解压到本地仓库,更新meta.json
-     *
-     * @param localRepoPath 本地仓库路径
-     * @param remoteBaseUrl 远程仓库基础URL
-     * @param remoteConfig  远程模板配置
-     * @return 是否成功
-     */
-    public static boolean smartDownloadTemplate(String localRepoPath, String remoteBaseUrl,
-            RemoteMetaConfig remoteConfig) {
-        try {
-            String groupId = remoteConfig.getGroupId();
-            String artifactId = remoteConfig.getArtifactId();
-
-            boolean needsUpdate = false;
-            try {
-                String localMetaPath = localRepoPath + File.separator +
-                        groupId + File.separator +
-                        artifactId + File.separator +
-                        "meta.json";
-                File localMetaFile = new File(localMetaPath);
-
-                if (!localMetaFile.exists()) {
-                    needsUpdate = true;
-                } else {
-                    needsUpdate = checkIfNeedsUpdate(localMetaFile, remoteConfig, localRepoPath, groupId, artifactId);
-                }
-            } catch (Exception e) {
-                needsUpdate = true;
-            }
-
-            if (needsUpdate) {
-                return downloadAndExtractTemplate(localRepoPath, remoteBaseUrl, groupId, artifactId, remoteConfig);
-            } else {
-                return true;
-            }
-
         } catch (Exception e) {
             return false;
         }
@@ -530,260 +408,27 @@ public class CodestyleClient {
      * @param metaInfo         模板元信息
      * @return 文件是否存在
      */
-    private static boolean isTemplateFileExists(String templateBasePath, MetaInfo metaInfo) {
-        String normalizedFilePath = StrUtil.removePrefix(normalizePath(metaInfo.getFilePath()), File.separator);
-        String versionPath = metaInfo.getVersion();
-
-        String actualFilePath = templateBasePath + File.separator +
-                metaInfo.getGroupId() + File.separator +
-                metaInfo.getArtifactId() + File.separator +
-                versionPath + File.separator +
-                normalizedFilePath + File.separator +
-                metaInfo.getFilename();
-        return new File(actualFilePath).exists();
-    }
-
-    /**
-     * 检查是否需要更新模板
-     *
-     * @param localMetaFile 本地meta.json文件
-     * @param remoteConfig  远程配置
-     * @param localRepoPath 本地仓库路径
-     * @param groupId       组ID
-     * @param artifactId    项目ID
-     * @return 是否需要更新
-     */
-    private static boolean checkIfNeedsUpdate(File localMetaFile, RemoteMetaConfig remoteConfig,
-            String localRepoPath, String groupId, String artifactId) {
+    private static boolean isTemplateFileExists(String templateBasePath, TemplateMetaInfo metaInfo) {
         try {
-            LocalMetaConfig localConfig = JSONUtil.toBean(FileUtil.readUtf8String(localMetaFile),
-                    LocalMetaConfig.class);
-            String remoteVersion = remoteConfig.getConfig().getVersion();
-
-            LocalMetaConfig.Config matchedConfig = findMatchedConfig(localConfig, remoteVersion);
-            if (matchedConfig == null) {
-                return true;
+            // 规范化文件路径，移除前导分隔符
+            String filePath = metaInfo.getFilePath();
+            if (filePath.startsWith("/") || filePath.startsWith("\\")) {
+                filePath = filePath.substring(1);
             }
-
-            List<RemoteMetaConfig.FileInfo> remoteFiles = remoteConfig.getConfig().getFiles();
-            if (CollUtil.isEmpty(remoteFiles)) {
-                return false;
-            }
-
-            List<LocalMetaConfig.FileInfo> localFiles = matchedConfig.getFiles();
-            String versionPath = remoteVersion;
-
-            for (RemoteMetaConfig.FileInfo remoteFile : remoteFiles) {
-                String normalizedFilePath = normalizePath(remoteFile.getFilePath());
-                if (normalizedFilePath.startsWith(File.separator)) {
-                    normalizedFilePath = normalizedFilePath.substring(1);
-                }
-
-                String actualFilePath = localRepoPath + File.separator + groupId + File.separator +
-                        artifactId + File.separator + versionPath + File.separator + normalizedFilePath
-                        + File.separator + remoteFile.getFilename();
-
-                if (!new File(actualFilePath).exists()) {
-                    return true;
-                }
-
-                if (isFileShaChanged(localFiles, remoteFile.getFilename(), remoteFile.getFilePath(),
-                        StrUtil.emptyToDefault(remoteFile.getSha256(), ""))) {
-                    return true;
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    /**
-     * 查找匹配的版本配置
-     *
-     * @param localConfig 本地配置
-     * @param version     版本号
-     * @return 匹配的配置,未找到返回null
-     */
-    private static LocalMetaConfig.Config findMatchedConfig(LocalMetaConfig localConfig, String version) {
-        if (localConfig.getConfigs() != null) {
-            for (LocalMetaConfig.Config config : localConfig.getConfigs()) {
-                if (config.getVersion().equals(version)) {
-                    return config;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 检查文件SHA256是否变化
-     *
-     * @param localFiles 本地文件列表
-     * @param filename   文件名
-     * @param filePath   文件路径
-     * @param remoteSha  远程SHA256
-     * @return SHA是否变化
-     */
-    private static boolean isFileShaChanged(List<LocalMetaConfig.FileInfo> localFiles,
-            String filename, String filePath, String remoteSha) {
-        if (localFiles == null) {
-            return true;
-        }
-
-        for (LocalMetaConfig.FileInfo localFile : localFiles) {
-            if (localFile.getFilename().equals(filename) && localFile.getFilePath().equals(filePath)) {
-                String localSha = StrUtil.emptyToDefault(localFile.getSha256(), "");
-                return !localSha.equals(remoteSha);
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 下载并解压模板
-     *
-     * @param localRepoPath 本地仓库路径
-     * @param remoteBaseUrl 远程基础URL
-     * @param groupId       组ID
-     * @param artifactId    项目ID
-     * @param remoteConfig  远程配置
-     * @return 是否成功
-     */
-    private static boolean downloadAndExtractTemplate(String localRepoPath, String remoteBaseUrl,
-            String groupId, String artifactId,
-            RemoteMetaConfig remoteConfig) {
-        String templatePath = File.separator + groupId + File.separator + artifactId;
-        String templateDir = localRepoPath + File.separator + groupId + File.separator + artifactId;
-        File localMetaFile = new File(templateDir, "meta.json");
-        String backupContent = null;
-        File zipFile = null;
-
-        try {
-            // 备份现有meta.json内容，用于后续版本追加
-            if (localMetaFile.exists()) {
-                backupContent = FileUtil.readUtf8String(localMetaFile);
-            }
-
-            HttpResponse response = HttpRequest.get(remoteBaseUrl + "/api/file/load")
-                    .form("paths", templatePath)
-                    .timeout(60000)
-                    .header("User-Agent", "MCP-CodeStyle-Server/1.0")
-                    .execute();
-
-            if (!response.isOk()) {
-                return false;
-            }
-
-            zipFile = FileUtil.createTempFile("template-", ".zip", true);
-
-            IoUtil.copy(response.bodyStream(), FileUtil.getOutputStream(zipFile));
-
-            // 解压到仓库根目录
-            if (extractZipFile(zipFile, localRepoPath, templateDir)) {
-                updateLocalMetaJson(localRepoPath, groupId, artifactId, remoteConfig, backupContent);
-                // 将远程的description写入README.md（缓存到本地）
-                saveDescriptionToReadme(templateDir, remoteConfig);
-                return true;
-            }
-            return false;
-        } catch (Exception e) {
-            return false;
-        } finally {
-            FileUtil.del(zipFile);
-        }
-    }
-
-    /**
-     * 解压ZIP文件
-     *
-     * @param zipFile     ZIP文件
-     * @param targetPath  目标路径
-     * @param templateDir 当前模板目录
-     * @return 是否成功
-     */
-    private static boolean extractZipFile(File zipFile, String targetPath, String templateDir) {
-        try {
-            File targetDir = FileUtil.mkdir(targetPath);
-            ZipUtil.unzip(zipFile, targetDir);
-            // 仅删除当前模板目录下的meta.json，避免影响其他模板
-            File metaFile = new File(templateDir, "meta.json");
-            if (metaFile.exists()) {
-                FileUtil.del(metaFile);
-            }
-            return true;
+            filePath = normalizePath(filePath);
+            
+            // 构建完整路径
+            Path templatePath = Paths.get(templateBasePath,
+                    metaInfo.getGroupId(),
+                    metaInfo.getArtifactId(),
+                    metaInfo.getVersion(),
+                    filePath,
+                    metaInfo.getFilename());
+            
+            return Files.exists(templatePath);
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /**
-     * 更新本地meta.json文件
-     *
-     * @param localRepoPath 本地仓库路径
-     * @param groupId       组ID
-     * @param artifactId    项目ID
-     * @param remoteConfig  远程配置
-     * @param backupContent 备份的meta.json内容（用于版本追加）
-     */
-    private static void updateLocalMetaJson(String localRepoPath, String groupId,
-            String artifactId, RemoteMetaConfig remoteConfig, String backupContent) {
-
-        String newVersion = remoteConfig.getConfig().getVersion();
-
-        String localMetaPath = localRepoPath + File.separator + groupId + File.separator +
-                artifactId + File.separator + "meta.json";
-
-        File localMetaFile = new File(localMetaPath);
-
-        LocalMetaConfig localConfig;
-
-        // 优先使用备份内容，确保版本追加正确
-        if (StrUtil.isNotBlank(backupContent)) {
-            localConfig = JSONUtil.toBean(backupContent, LocalMetaConfig.class);
-        } else if (FileUtil.exist(localMetaFile)) {
-            localConfig = JSONUtil.toBean(FileUtil.readUtf8String(localMetaFile), LocalMetaConfig.class);
-        } else {
-            localConfig = new LocalMetaConfig();
-            localConfig.setGroupId(groupId);
-            localConfig.setArtifactId(artifactId);
-            localConfig.setConfigs(new ArrayList<>());
-        }
-
-        List<LocalMetaConfig.Config> configs = localConfig.getConfigs();
-        if (CollUtil.isEmpty(configs)) {
-            configs = new ArrayList<>();
-            localConfig.setConfigs(configs);
-        }
-
-        configs.removeIf(config -> config.getVersion().equals(newVersion));
-
-        LocalMetaConfig.Config newConfig = MetaInfoConvertUtil.convertRemoteToLocalConfig(remoteConfig);
-        configs.add(newConfig);
-
-        FileUtil.writeUtf8String(JSONUtil.toJsonPrettyStr(localConfig), localMetaFile);
-    }
-
-    /**
-     * 将远程description保存到本地README.md
-     * 缓存路径: groupId/artifactId/version/README.md
-     *
-     * @param templateDir  模板目录 (groupId/artifactId)
-     * @param remoteConfig 远程配置
-     */
-    private static void saveDescriptionToReadme(String templateDir, RemoteMetaConfig remoteConfig) {
-        String description = remoteConfig.getDescription();
-        if (StrUtil.isBlank(description)) {
-            return;
-        }
-        
-        String version = remoteConfig.getConfig().getVersion();
-        String readmePath = templateDir + File.separator + version + File.separator + "README.md";
-        File readmeFile = new File(readmePath);
-        
-        // 确保版本目录存在
-        FileUtil.mkdir(readmeFile.getParentFile());
-        FileUtil.writeUtf8String(description, readmeFile);
     }
 
     // ==================== 工具方法 ====================
@@ -832,5 +477,342 @@ public class CodestyleClient {
         }
         return String.join(" ", keywords);
     }
-}
 
+    // ==================== 模板上传和删除（新增）====================
+
+    /**
+     * 解析模板路径
+     * 
+     * @param templatePath 格式: groupId/artifactId/version
+     * @return [groupId, artifactId, version]
+     * @throws IllegalArgumentException 路径格式错误
+     */
+    public static String[] parseTemplatePath(String templatePath) {
+        if (templatePath == null || templatePath.isEmpty()) {
+            throw new IllegalArgumentException("模板路径不能为空");
+        }
+        
+        String normalized = normalizePath(templatePath);
+        String[] parts = normalized.split(Pattern.quote(File.separator));
+        
+        if (parts.length != 3) {
+            throw new IllegalArgumentException(
+                "模板路径格式错误，应为: groupId/artifactId/version"
+            );
+        }
+        
+        return parts;
+    }
+
+    /**
+     * 验证版本号格式（语义化版本）
+     * 
+     * @param version 版本号
+     * @return 是否有效
+     */
+    public static boolean isValidSemanticVersion(String version) {
+        if (version == null || version.isEmpty()) {
+            return false;
+        }
+        
+        // 语义化版本正则: MAJOR.MINOR.PATCH
+        String regex = "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$";
+        return version.matches(regex);
+    }
+
+    /**
+     * 验证模板完整性
+     * 
+     * @param versionDir 版本目录
+     * @throws IOException 验证失败
+     */
+    public static void validateTemplate(Path versionDir) throws IOException {
+        // 1. 验证目录存在
+        if (!Files.exists(versionDir) || !Files.isDirectory(versionDir)) {
+            throw new IOException("版本目录不存在: " + versionDir);
+        }
+        
+        // 2. 验证 meta.json 存在
+        Path metaPath = versionDir.resolve("meta.json");
+        if (!Files.exists(metaPath)) {
+            throw new IOException("meta.json 不存在");
+        }
+        
+        // 3. 验证 meta.json 格式
+        try {
+            String content = new String(Files.readAllBytes(metaPath), java.nio.charset.StandardCharsets.UTF_8);
+            TemplateMetaConfig metaConfig = JSONUtil.toBean(content, TemplateMetaConfig.class);
+            
+            if (metaConfig.getGroupId() == null || metaConfig.getGroupId().isEmpty()) {
+                throw new IOException("meta.json 缺少 groupId 字段");
+            }
+            if (metaConfig.getArtifactId() == null || metaConfig.getArtifactId().isEmpty()) {
+                throw new IOException("meta.json 缺少 artifactId 字段");
+            }
+            if (metaConfig.getVersion() == null || metaConfig.getVersion().isEmpty()) {
+                throw new IOException("meta.json 缺少 version 字段");
+            }
+            if (metaConfig.getFiles() == null || metaConfig.getFiles().isEmpty()) {
+                throw new IOException("meta.json 缺少 files 字段");
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("meta.json 格式错误: " + e.getMessage());
+        }
+        
+        // 4. 验证至少有一个 .ftl 文件
+        try (Stream<Path> stream = Files.walk(versionDir)) {
+            long ftlCount = stream
+                .filter(Files::isRegularFile)
+                .filter(p -> p.toString().endsWith(".ftl"))
+                .count();
+            
+            if (ftlCount == 0) {
+                throw new IOException("未找到 .ftl 模板文件");
+            }
+        }
+    }
+
+    /**
+     * 打包模板为 ZIP 文件
+     * 
+     * @param localRepoPath 本地仓库路径
+     * @param groupId 组织 ID
+     * @param artifactId 模板 ID
+     * @param version 版本号
+     * @return ZIP 文件
+     * @throws IOException 文件操作异常
+     */
+    public static File packTemplate(
+        String localRepoPath,
+        String groupId,
+        String artifactId,
+        String version
+    ) throws IOException {
+        // 1. 定位版本目录
+        Path versionDir = Paths.get(
+            normalizePath(localRepoPath),
+            groupId,
+            artifactId,
+            version
+        );
+        
+        // 2. 验证模板
+        validateTemplate(versionDir);
+        
+        // 3. 创建临时 ZIP 文件
+        File zipFile = FileUtil.createTempFile("template-", ".zip", true);
+        
+        // 4. 打包整个版本目录（使用 ZipUtil.zip(File, OutputStream)）
+        try (FileOutputStream fos = new FileOutputStream(zipFile)) {
+            ZipUtil.zip(fos, java.nio.charset.StandardCharsets.UTF_8, false, null, versionDir.toFile());
+        }
+        
+        return zipFile;
+    }
+
+    /**
+     * 上传模板到远程服务器
+     * 
+     * @param remoteBaseUrl 远程服务器地址
+     * @param zipFile ZIP 文件
+     * @param groupId 组织 ID
+     * @param artifactId 模板 ID
+     * @param version 版本号
+     * @param overwrite 是否覆盖
+     * @param accessKey Access Key
+     * @param secretKey Secret Key
+     * @param timeoutMs 超时时间
+     * @return 上传响应
+     * @throws top.codestyle.mcp.exception.RemoteUploadException 上传异常
+     */
+    public static top.codestyle.mcp.model.remote.RemoteUploadResponse uploadTemplateToRemote(
+        String remoteBaseUrl,
+        File zipFile,
+        String groupId,
+        String artifactId,
+        String version,
+        boolean overwrite,
+        String accessKey,
+        String secretKey,
+        int timeoutMs
+    ) throws top.codestyle.mcp.exception.RemoteUploadException {
+        try {
+            // 1. 构建请求参数
+            long timestamp = System.currentTimeMillis();
+            String nonce = UUID.randomUUID().toString().replace("-", "");
+            
+            Map<String, String> params = new TreeMap<>();
+            params.put("groupId", groupId);
+            params.put("artifactId", artifactId);
+            params.put("version", version);
+            params.put("overwrite", String.valueOf(overwrite));
+            params.put("timestamp", String.valueOf(timestamp));
+            params.put("nonce", nonce);
+            params.put("accessKey", accessKey);
+            
+            // 2. 生成签名
+            String sign = generateUploadSignature(params, secretKey);
+            
+            // 3. 发送请求（使用 Map<String, Object> 以支持文件上传）
+            Map<String, Object> formParams = new HashMap<>();
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                formParams.put(entry.getKey(), entry.getValue());
+            }
+            formParams.put("sign", sign);
+            
+            HttpRequest request = HttpRequest.post(remoteBaseUrl + "/open-api/template/upload")
+                .form(formParams)
+                .form("file", zipFile)
+                .timeout(timeoutMs)
+                .header("User-Agent", "MCP-CodeStyle-Server/2.1.0");
+            
+            HttpResponse response = request.execute();
+            
+            // 4. 处理响应
+            if (!response.isOk()) {
+                throw new top.codestyle.mcp.exception.RemoteUploadException(
+                    "上传失败: HTTP " + response.getStatus()
+                );
+            }
+            
+            String body = response.body();
+            top.codestyle.mcp.model.remote.RemoteUploadResponse uploadResponse = 
+                JSONUtil.toBean(body, top.codestyle.mcp.model.remote.RemoteUploadResponse.class);
+            
+            if (uploadResponse.getSuccess() == null || !uploadResponse.getSuccess()) {
+                throw new top.codestyle.mcp.exception.RemoteUploadException(
+                    "上传失败: " + uploadResponse.getMsg()
+                );
+            }
+            
+            return uploadResponse;
+            
+        } catch (top.codestyle.mcp.exception.RemoteUploadException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new top.codestyle.mcp.exception.RemoteUploadException("上传异常: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 生成上传签名
+     */
+    private static String generateUploadSignature(
+        Map<String, String> params,
+        String secretKey
+    ) {
+        Map<String, String> allParams = new TreeMap<>(params);
+        allParams.put("key", secretKey);
+        
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (!"sign".equals(entry.getKey()) && !"file".equals(entry.getKey())) {
+                if (!first) sb.append("&");
+                sb.append(entry.getKey()).append("=").append(entry.getValue());
+                first = false;
+            }
+        }
+        
+        return DigestUtil.md5Hex(sb.toString());
+    }
+
+    /**
+     * 删除远程模板
+     * 
+     * @param remoteBaseUrl 远程服务器地址
+     * @param groupId 组织 ID
+     * @param artifactId 模板 ID
+     * @param version 版本号
+     * @param accessKey Access Key
+     * @param secretKey Secret Key
+     * @param timeoutMs 超时时间
+     * @return 删除响应
+     * @throws top.codestyle.mcp.exception.RemoteDeleteException 删除异常
+     */
+    public static top.codestyle.mcp.model.remote.RemoteDeleteResponse deleteTemplateFromRemote(
+        String remoteBaseUrl,
+        String groupId,
+        String artifactId,
+        String version,
+        String accessKey,
+        String secretKey,
+        int timeoutMs
+    ) throws top.codestyle.mcp.exception.RemoteDeleteException {
+        try {
+            // 1. 构建请求参数
+            long timestamp = System.currentTimeMillis();
+            String nonce = UUID.randomUUID().toString().replace("-", "");
+            
+            Map<String, String> params = new TreeMap<>();
+            params.put("groupId", groupId);
+            params.put("artifactId", artifactId);
+            params.put("version", version);
+            params.put("timestamp", String.valueOf(timestamp));
+            params.put("nonce", nonce);
+            params.put("accessKey", accessKey);
+            
+            // 2. 生成签名
+            String sign = generateDeleteSignature(params, secretKey);
+            params.put("sign", sign);
+            
+            // 3. 发送请求
+            Map<String, Object> formParams = new HashMap<>(params);
+            HttpRequest request = HttpRequest.post(remoteBaseUrl + "/open-api/template/delete")
+                .form(formParams)
+                .timeout(timeoutMs)
+                .header("User-Agent", "MCP-CodeStyle-Server/2.1.0");
+            
+            HttpResponse response = request.execute();
+            
+            // 4. 处理响应
+            if (!response.isOk()) {
+                throw new top.codestyle.mcp.exception.RemoteDeleteException(
+                    "删除失败: HTTP " + response.getStatus()
+                );
+            }
+            
+            String body = response.body();
+            top.codestyle.mcp.model.remote.RemoteDeleteResponse deleteResponse = 
+                JSONUtil.toBean(body, top.codestyle.mcp.model.remote.RemoteDeleteResponse.class);
+            
+            if (deleteResponse.getSuccess() == null || !deleteResponse.getSuccess()) {
+                throw new top.codestyle.mcp.exception.RemoteDeleteException(
+                    "删除失败: " + deleteResponse.getMsg()
+                );
+            }
+            
+            return deleteResponse;
+            
+        } catch (top.codestyle.mcp.exception.RemoteDeleteException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new top.codestyle.mcp.exception.RemoteDeleteException("删除异常: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 生成删除签名
+     */
+    private static String generateDeleteSignature(
+        Map<String, String> params,
+        String secretKey
+    ) {
+        Map<String, String> allParams = new TreeMap<>(params);
+        allParams.put("key", secretKey);
+        
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (!"sign".equals(entry.getKey())) {
+                if (!first) sb.append("&");
+                sb.append(entry.getKey()).append("=").append(entry.getValue());
+                first = false;
+            }
+        }
+        
+        return DigestUtil.md5Hex(sb.toString());
+    }
+}

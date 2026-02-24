@@ -55,8 +55,8 @@ nul
 /archive/
 
 
-# # Docs directory (internal documentation)
-# /docs/
+# Docs directory (internal documentation)
+/docs/
 
 # Development documentation (keep in repo but ignore in releases)
 PRE_COMMIT_CHECK.md

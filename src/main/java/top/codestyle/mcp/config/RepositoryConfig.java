@@ -15,6 +15,11 @@ import java.nio.file.Paths;
 /**
  * 仓库配置类
  * 管理仓库路径和远程检索配置
+ * 
+ * 配置优先级（从高到低）：
+ * 1. 环境变量: CODESTYLE_CACHE_PATH, CODESTYLE_REMOTE_ENABLED
+ * 2. cfg.json: 所有配置字段
+ * 3. application.yml: 默认值
  *
  * @author CodeStyle Team
  * @since 2.0.0
@@ -25,12 +30,8 @@ import java.nio.file.Paths;
 public class RepositoryConfig {
 
     /**
-     * 本地基础路径，默认使用系统临时目录
-     * 可通过以下方式覆盖（优先级从高到低）：
-     * 1. JVM参数: -Dcache.base-path=自定义路径
-     * 2. JVM参数: -Drepository.local-path=自定义路径
-     * 3. 环境变量: REPOSITORY_LOCAL_PATH=自定义路径
-     * 4. application.yml 中的 repository.local-path
+     * 本地基础路径
+     * 优先级: 环境变量 CODESTYLE_CACHE_PATH > cfg.json > application.yml
      */
     private String localPath;
 
@@ -46,26 +47,31 @@ public class RepositoryConfig {
     public static class RemoteConfig {
         /**
          * 是否启用远程检索
+         * 优先级: 环境变量 CODESTYLE_REMOTE_ENABLED > cfg.json > application.yml
          */
         private boolean enabled = false;
 
         /**
          * 远程仓库基础 URL
+         * 优先级: cfg.json > application.yml
          */
         private String baseUrl;
 
         /**
          * Access Key（AK）
+         * 优先级: cfg.json > application.yml
          */
         private String accessKey;
 
         /**
          * Secret Key（SK）
+         * 优先级: cfg.json > application.yml
          */
         private String secretKey;
 
         /**
          * 超时时间（毫秒）
+         * 优先级: cfg.json > application.yml
          */
         private int timeoutMs = 10000;
     }

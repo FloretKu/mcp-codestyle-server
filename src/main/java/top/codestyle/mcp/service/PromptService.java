@@ -5,7 +5,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
-import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
+import top.codestyle.mcp.model.remote.RemoteSearchResult;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -272,7 +272,7 @@ public class PromptService {
      * @param results 远程搜索结果列表
      * @return 格式化的多结果响应字符串
      */
-    public String buildRemoteSearchResultResponse(String keyword, List<top.codestyle.mcp.util.CodestyleClient.RemoteSearchResult> results) {
+    public String buildRemoteSearchResultResponse(String keyword, List<RemoteSearchResult> results) {
         StringBuilder resultList = new StringBuilder();
         int total = results.size();
         for (int i = 0; i < total; i++) {
@@ -301,33 +301,12 @@ public class PromptService {
     /**
      * 构建远程多结果响应（旧版：兼容 RemoteMetaConfig）
      * 
-     * @deprecated 使用 {@link #buildRemoteSearchResultResponse(String, List)} 替代
+     * @deprecated 已废弃，RemoteMetaConfig 已删除
      */
     @Deprecated
-    public String buildRemoteMultiResultResponse(String keyword, List<RemoteMetaConfig> results) {
-        StringBuilder resultList = new StringBuilder();
-        int total = results.size();
-        for (int i = 0; i < total; i++) {
-            RemoteMetaConfig result = results.get(i);
-            String desc = truncateDescription(result.getDescription(), 80);
-            String path = result.getGroupId() + "/" + result.getArtifactId();
-            if (result.getConfig() != null && result.getConfig().getVersion() != null) {
-                path += "/" + result.getConfig().getVersion();
-            }
-            resultList.append(String.format("## %d. %s/%s\n路径: %s\n描述: %s\n\n",
-                    i + 1,
-                    result.getGroupId(),
-                    result.getArtifactId(),
-                    path,
-                    desc));
-        }
-
-        RemoteMetaConfig first = results.get(0);
-        return buildMultiResult(
-                String.valueOf(total),
-                keyword,
-                resultList.toString().trim(),
-                first.getGroupId() + "/" + first.getArtifactId());
+    public String buildRemoteMultiResultResponse(String keyword, List<Object> results) {
+        // 该方法已废弃，不再使用
+        return "该方法已废弃";
     }
 
     /**

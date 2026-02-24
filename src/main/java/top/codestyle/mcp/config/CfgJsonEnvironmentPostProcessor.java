@@ -52,34 +52,44 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
             if (repository != null) {
                 File baseDir = cfgFile.getParentFile();
 
-                String repositoryDir = firstString(repository, "repository-dir", "repository_dir", "dir");
-                if (repositoryDir != null) {
-                    properties.put("repository.repository-dir", resolvePath(baseDir, repositoryDir));
-                }
-
-                String localPath = firstString(repository, "local-path", "local_path");
+                // local-path
+                String localPath = repository.getStr("local-path");
                 if (localPath != null) {
                     properties.put("repository.local-path", resolvePath(baseDir, localPath));
                 }
 
-                String remotePath = firstString(repository, "remote-path", "remote_path", "remote-url", "remote_url");
-                if (remotePath != null) {
-                    properties.put("repository.remote-path", remotePath);
-                }
+                // remote 配置
+                JSONObject remote = repository.getJSONObject("remote");
+                if (remote != null) {
+                    // enabled
+                    Boolean enabled = remote.getBool("enabled");
+                    if (enabled != null) {
+                        properties.put("repository.remote.enabled", enabled);
+                    }
 
-                Boolean remoteSearchEnabled = firstBoolean(repository, "remote-search-enabled", "remote_search_enabled", "remote_enabled");
-                if (remoteSearchEnabled != null) {
-                    properties.put("repository.remote-search-enabled", remoteSearchEnabled);
-                }
+                    // base-url
+                    String baseUrl = remote.getStr("base-url");
+                    if (baseUrl != null) {
+                        properties.put("repository.remote.base-url", baseUrl);
+                    }
 
-                Integer timeoutMs = firstInteger(repository, "remote-search-timeout-ms", "remote_search_timeout_ms");
-                if (timeoutMs != null) {
-                    properties.put("repository.remote-search-timeout-ms", timeoutMs);
-                }
+                    // access-key
+                    String accessKey = remote.getStr("access-key");
+                    if (accessKey != null) {
+                        properties.put("repository.remote.access-key", accessKey);
+                    }
 
-                String apiKey = firstString(repository, "api-key", "api_key");
-                if (apiKey != null && !apiKey.isEmpty()) {
-                    properties.put("repository.api-key", apiKey);
+                    // secret-key
+                    String secretKey = remote.getStr("secret-key");
+                    if (secretKey != null) {
+                        properties.put("repository.remote.secret-key", secretKey);
+                    }
+
+                    // timeout-ms
+                    Integer timeoutMs = remote.getInt("timeout-ms");
+                    if (timeoutMs != null) {
+                        properties.put("repository.remote.timeout-ms", timeoutMs);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -125,32 +135,5 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
             return file.getAbsolutePath();
         }
         return new File(baseDir, path).getAbsolutePath();
-    }
-
-    private String firstString(JSONObject json, String... keys) {
-        for (String key : keys) {
-            if (json.containsKey(key)) {
-                return json.getStr(key);
-            }
-        }
-        return null;
-    }
-
-    private Boolean firstBoolean(JSONObject json, String... keys) {
-        for (String key : keys) {
-            if (json.containsKey(key)) {
-                return json.getBool(key);
-            }
-        }
-        return null;
-    }
-
-    private Integer firstInteger(JSONObject json, String... keys) {
-        for (String key : keys) {
-            if (json.containsKey(key)) {
-                return json.getInt(key);
-            }
-        }
-        return null;
     }
 }

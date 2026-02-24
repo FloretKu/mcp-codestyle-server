@@ -18,6 +18,7 @@
 - 📦 **自动更新**: 单命令更新 JAR 和模板
 - 🌍 **跨平台**: 完整支持 Windows、Linux、macOS
 - 🎯 **开箱即用**: 安装即用，无需配置
+- ✅ **格式统一**: v2.0.0 统一为单版本格式，更简洁高效
 
 ## 🚀 快速开始
 
@@ -104,6 +105,28 @@ bash codestyle get "continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller
 codestyle.bat get "continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller/Controller.ftl"
 ```
 
+**上传模板**:
+```bash
+# 方式1: 从文件系统上传
+# Linux/macOS
+bash codestyle upload --path /path/to/template --group mygroup --artifact MyTemplate --version 1.0.0
+
+# Windows
+codestyle.bat upload --path E:\templates\MyTemplate --group mygroup --artifact MyTemplate --version 1.0.0
+
+# 方式2: 从仓库路径上传（已在仓库中）
+bash codestyle upload --path mygroup/MyTemplate/1.0.0 --overwrite
+```
+
+**删除模板**:
+```bash
+# Linux/macOS
+bash codestyle delete "mygroup/MyTemplate/1.0.0"
+
+# Windows
+codestyle.bat delete "mygroup/MyTemplate/1.0.0"
+```
+
 **更新到最新版本**:
 ```bash
 # Linux/macOS
@@ -146,6 +169,20 @@ codestyle/
 如需自定义，可以修改 `~/.claude/skills/codestyle/scripts/cfg.json`。
 
 详细配置说明请参考：[配置文档](codestyle/references/config.md)
+
+### 本地模式 vs 远程模式
+
+**本地模式**（默认，`remote.enabled=false`）：
+- ✅ 离线可用，无需网络连接
+- ✅ 搜索速度快（Lucene 全文检索）
+- ✅ upload: 保存到本地缓存并重建索引
+- ✅ delete: 删除本地缓存并重建索引
+
+**远程模式**（`remote.enabled=true`）：
+- 🌐 需要配置远程服务器（base-url, access-key, secret-key）
+- 🌐 支持团队共享模板
+- 🌐 upload: 保存到本地 + 上传到远程服务器
+- 🌐 delete: 删除本地 + 删除远程服务器
 
 ## ⚙️ 前置要求
 
@@ -230,6 +267,21 @@ java -version
 ```
 
 ## 🔄 更新
+
+### v2.0.0 重要更新（2026-02-23）
+
+**格式变更**: 统一为单版本格式，建议清空旧缓存：
+
+```bash
+# 清空旧缓存
+rm -rf ~/.codestyle/cache/codestyle-cache/*  # Linux/macOS
+rmdir /s /q %USERPROFILE%\.codestyle\cache\codestyle-cache  # Windows
+
+# 更新 JAR 和 Skill
+cd ~/.claude/skills/codestyle/scripts
+bash update.sh  # Linux/macOS
+update.bat      # Windows
+```
 
 ### 自动更新检查
 
