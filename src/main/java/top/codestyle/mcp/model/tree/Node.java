@@ -40,5 +40,5 @@ public class Node {
     /**
      * 输入变量列表
      */
-    public List<TemplateVariable> inputVarivales;
+    public List<TemplateVariable> inputVariables;
 }

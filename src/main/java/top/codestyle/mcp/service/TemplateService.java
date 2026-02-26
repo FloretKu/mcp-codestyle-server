@@ -114,7 +114,8 @@ public class TemplateService {
         RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
         return CodestyleClient.searchFromRemote(
             remote.getBaseUrl(), 
-            templateKeyword, 
+            templateKeyword,
+            10,
             remote.getAccessKey(), 
             remote.getSecretKey(), 
             remote.getTimeoutMs()

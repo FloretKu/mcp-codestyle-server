@@ -36,30 +36,26 @@ public class RemoteUploadResponse {
      */
     @Data
     public static class UploadData {
-        /**
-         * 组织 ID
-         */
+        /** 模板 ID */
+        private String templateId;
+        /** 组织 ID */
         private String groupId;
-        
-        /**
-         * 模板 ID
-         */
+        /** 模板 ID（artifactId） */
         private String artifactId;
-        
-        /**
-         * 版本号
-         */
+        /** 版本号 */
         private String version;
-        
-        /**
-         * 上传时间
-         */
+        /** 模板名称 */
+        private String name;
+        /** 模板描述 */
+        private String description;
+        /** 下载 URL */
+        private String downloadUrl;
+        /** 上传时间 */
         private String uploadTime;
-        
-        /**
-         * 文件数量
-         */
+        /** 文件数量 */
         private Integer fileCount;
+        /** 文件列表 */
+        private Object files;
     }
 }
 

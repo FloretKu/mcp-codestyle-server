@@ -299,17 +299,6 @@ public class PromptService {
     }
 
     /**
-     * 构建远程多结果响应（旧版：兼容 RemoteMetaConfig）
-     * 
-     * @deprecated 已废弃，RemoteMetaConfig 已删除
-     */
-    @Deprecated
-    public String buildRemoteMultiResultResponse(String keyword, List<Object> results) {
-        // 该方法已废弃，不再使用
-        return "该方法已废弃";
-    }
-
-    /**
      * 构建本地多结果响应
      *
      * @param keyword 搜索关键词

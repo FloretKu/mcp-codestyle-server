@@ -160,7 +160,8 @@ public class CodestyleClient {
      * @return 远程检索结果列表
      * @throws top.codestyle.mcp.exception.RemoteSearchException 检索失败时抛出
      */
-    public static List<RemoteSearchResult> searchFromRemote(String remoteBaseUrl, String query, 
+    public static List<RemoteSearchResult> searchFromRemote(String remoteBaseUrl, String query,
+                                                            int topK,
                                                             String accessKey, String secretKey, int timeoutMs) {
         if (StrUtil.isBlank(accessKey) || StrUtil.isBlank(secretKey)) {
             throw new top.codestyle.mcp.exception.RemoteSearchException(
@@ -176,6 +177,7 @@ public class CodestyleClient {
             
             Map<String, String> params = new TreeMap<>();
             params.put("query", query);
+            params.put("topK", String.valueOf(topK));
             params.put("timestamp", String.valueOf(timestamp));
             params.put("nonce", nonce);
             params.put("accessKey", accessKey);
