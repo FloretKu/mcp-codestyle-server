@@ -132,7 +132,9 @@ public class TemplateService {
         String localRepoPath = repositoryConfig.getRepositoryDir();
         String remoteBaseUrl = repositoryConfig.getRemote().getBaseUrl();
         
-        return CodestyleClient.downloadTemplate(localRepoPath, remoteBaseUrl, result);
+        RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
+        return CodestyleClient.downloadTemplate(localRepoPath, remoteBaseUrl, result,
+            remote.getAccessKey(), remote.getSecretKey());
     }
 
     /**

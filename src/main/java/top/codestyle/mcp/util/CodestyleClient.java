@@ -367,14 +367,30 @@ public class CodestyleClient {
      * @return 是否成功
      */
     public static boolean downloadTemplate(String localRepoPath, String remoteBaseUrl, 
-                                           RemoteSearchResult result) {
+                                           RemoteSearchResult result,
+                                           String accessKey, String secretKey) {
         try {
-            String downloadUrl = result.getDownloadUrl(remoteBaseUrl);
-            if (downloadUrl == null) {
+            if (result.getGroupId() == null || result.getArtifactId() == null || result.getVersion() == null) {
                 return false;
             }
             
-            HttpResponse response = HttpRequest.get(downloadUrl)
+            long timestamp = System.currentTimeMillis();
+            String nonce = UUID.randomUUID().toString().replace("-", "");
+            
+            Map<String, String> params = new TreeMap<>();
+            params.put("groupId", result.getGroupId());
+            params.put("artifactId", result.getArtifactId());
+            params.put("version", result.getVersion());
+            params.put("timestamp", String.valueOf(timestamp));
+            params.put("nonce", nonce);
+            params.put("accessKey", accessKey);
+            
+            String sign = generateSignature(params, secretKey);
+            params.put("sign", sign);
+            
+            Map<String, Object> formParams = new HashMap<>(params);
+            HttpResponse response = HttpRequest.get(remoteBaseUrl + "/open-api/template/download")
+                    .form(formParams)
                     .timeout(60000)
                     .header("User-Agent", "MCP-CodeStyle-Server/2.0.0")
                     .execute();
