@@ -1,10 +1,16 @@
 package top.codestyle.mcp.service;
 
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
+import top.codestyle.mcp.model.local.LocalDeleteResult;
+import top.codestyle.mcp.model.local.LocalUploadResult;
 import top.codestyle.mcp.model.template.TemplateContent;
+import top.codestyle.mcp.model.template.TemplateMetaConfig;
 import top.codestyle.mcp.model.template.TemplateMetaInfo;
 import top.codestyle.mcp.model.remote.RemoteSearchResult;
 import top.codestyle.mcp.model.tree.TreeNode;
@@ -20,14 +26,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * 模板服务
- * 提供模板搜索、远程配置获取和智能下载功能
+ * <p>提供模板搜索、远程配置获取、智能下载、本地保存及远程上传/删除功能。
+ * <p>支持本地仓库和远程服务器双模式操作，
+ * 自动维护本地 Lucene 索引的一致性。
  *
  * @author 小航love666, Kanttha, movclantian
  * @since 2025-09-29
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TemplateService {
@@ -98,7 +108,8 @@ public class TemplateService {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("远程搜索路径 [" + exactPath + "] 失败: " + e.getMessage());
         }
 
         return null;
@@ -237,7 +248,7 @@ public class TemplateService {
         return promptService.buildLocalMultiResultResponse(keyword, results);
     }
 
-    // ==================== 模板上传和删除（新增）====================
+    // ---------- 模板上传和删除 ----------
 
     /**
      * 从文件系统复制模板到本地缓存
@@ -251,14 +262,19 @@ public class TemplateService {
      * @throws IOException 文件操作异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalUploadResult saveTemplateFromFileSystemLocal(
+    public LocalUploadResult saveTemplateFromFileSystemLocal(
             String sourcePath, String groupId, String artifactId, String version, boolean overwrite) 
         throws IOException {
         
         // 1. 验证源路径
-        Path sourceDir = Paths.get(sourcePath);
+        Path sourceDir = Paths.get(sourcePath).toAbsolutePath().normalize();
         if (!Files.exists(sourceDir) || !Files.isDirectory(sourceDir)) {
             throw new IllegalArgumentException("源路径不存在或不是目录: " + sourcePath);
+        }
+        // 路径穿越防护
+        String sourceAbsolute = sourceDir.toString();
+        if (sourceAbsolute.contains("..")) {
+            throw new IllegalArgumentException("非法路径: 不允许包含 '..'");
         }
         
         // 2. 智能检测版本目录
@@ -290,19 +306,19 @@ public class TemplateService {
                 );
             }
             // 覆盖模式：删除旧版本
-            cn.hutool.core.io.FileUtil.del(targetDir.toFile());
+            FileUtil.del(targetDir.toFile());
         }
         
         // 6. 复制文件
-        cn.hutool.core.io.FileUtil.copyContent(sourceDir.toFile(), targetDir.toFile(), true);
+        FileUtil.copyContent(sourceDir.toFile(), targetDir.toFile(), true);
         
         // 7. 更新 meta.json 中的 groupId/artifactId/version
         Path metaPath = targetDir.resolve("meta.json");
         if (Files.exists(metaPath)) {
             try {
-                String content = new String(Files.readAllBytes(metaPath), java.nio.charset.StandardCharsets.UTF_8);
-                top.codestyle.mcp.model.template.TemplateMetaConfig metaConfig = 
-                    cn.hutool.json.JSONUtil.toBean(content, top.codestyle.mcp.model.template.TemplateMetaConfig.class);
+                String content = new String(Files.readAllBytes(metaPath), StandardCharsets.UTF_8);
+                TemplateMetaConfig metaConfig = 
+                    JSONUtil.toBean(content, TemplateMetaConfig.class);
                 
                 // 更新 groupId/artifactId/version
                 metaConfig.setGroupId(groupId);
@@ -310,8 +326,8 @@ public class TemplateService {
                 metaConfig.setVersion(version);
                 
                 // 写回文件
-                String updatedContent = cn.hutool.json.JSONUtil.toJsonPrettyStr(metaConfig);
-                Files.write(metaPath, updatedContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                String updatedContent = JSONUtil.toJsonPrettyStr(metaConfig);
+                Files.write(metaPath, updatedContent.getBytes(StandardCharsets.UTF_8));
             } catch (Exception e) {
                 throw new IOException("更新 meta.json 失败: " + e.getMessage());
             }
@@ -322,7 +338,7 @@ public class TemplateService {
         
         // 9. 统计文件数
         int fileCount = 0;
-        try (java.util.stream.Stream<Path> stream = Files.walk(targetDir)) {
+        try (Stream<Path> stream = Files.walk(targetDir)) {
             fileCount = (int) stream
                 .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".ftl"))
@@ -333,7 +349,7 @@ public class TemplateService {
         luceneIndexService.rebuildIndex();
         
         // 11. 返回结果
-        top.codestyle.mcp.model.local.LocalUploadResult result = new top.codestyle.mcp.model.local.LocalUploadResult();
+        LocalUploadResult result = new LocalUploadResult();
         result.setSuccess(true);
         result.setGroupId(groupId);
         result.setArtifactId(artifactId);
@@ -357,12 +373,12 @@ public class TemplateService {
      * @throws IOException 文件操作或网络异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalUploadResult uploadTemplateFromFileSystemRemote(
+    public LocalUploadResult uploadTemplateFromFileSystemRemote(
             String sourcePath, String groupId, String artifactId, String version, boolean overwrite) 
         throws IOException {
         
         // 1. 先保存到本地
-        top.codestyle.mcp.model.local.LocalUploadResult localResult = 
+        LocalUploadResult localResult = 
             saveTemplateFromFileSystemLocal(sourcePath, groupId, artifactId, version, overwrite);
         
         // 2. 打包为 ZIP
@@ -376,7 +392,7 @@ public class TemplateService {
         try {
             // 3. 上传到远程
             RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
-            top.codestyle.mcp.model.remote.RemoteUploadResponse response = CodestyleClient.uploadTemplateToRemote(
+            CodestyleClient.uploadTemplateToRemote(
                 remote.getBaseUrl(),
                 zipFile,
                 localResult.getGroupId(),
@@ -400,7 +416,7 @@ public class TemplateService {
             
         } finally {
             // 5. 清理临时文件
-            cn.hutool.core.io.FileUtil.del(zipFile);
+            FileUtil.del(zipFile);
         }
     }
 
@@ -413,7 +429,7 @@ public class TemplateService {
      * @throws IOException 文件操作异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalUploadResult saveTemplateLocal(String templatePath, boolean overwrite) 
+    public LocalUploadResult saveTemplateLocal(String templatePath, boolean overwrite) 
         throws IOException {
         
         // 1. 解析路径
@@ -451,7 +467,7 @@ public class TemplateService {
         
         // 7. 统计文件数
         int fileCount = 0;
-        try (java.util.stream.Stream<Path> stream = Files.walk(versionDir)) {
+        try (Stream<Path> stream = Files.walk(versionDir)) {
             fileCount = (int) stream
                 .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".ftl"))
@@ -462,7 +478,7 @@ public class TemplateService {
         luceneIndexService.rebuildIndex();
         
         // 9. 返回结果
-        top.codestyle.mcp.model.local.LocalUploadResult result = new top.codestyle.mcp.model.local.LocalUploadResult();
+        LocalUploadResult result = new LocalUploadResult();
         result.setSuccess(true);
         result.setGroupId(groupId);
         result.setArtifactId(artifactId);
@@ -483,11 +499,11 @@ public class TemplateService {
      * @throws IOException 文件操作或网络异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalUploadResult uploadTemplateRemote(String templatePath, boolean overwrite) 
+    public LocalUploadResult uploadTemplateRemote(String templatePath, boolean overwrite) 
         throws IOException {
         
         // 1. 先保存到本地
-        top.codestyle.mcp.model.local.LocalUploadResult localResult = saveTemplateLocal(templatePath, overwrite);
+        LocalUploadResult localResult = saveTemplateLocal(templatePath, overwrite);
         
         // 2. 打包为 ZIP
         File zipFile = CodestyleClient.packTemplate(
@@ -500,7 +516,7 @@ public class TemplateService {
         try {
             // 3. 上传到远程
             RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
-            top.codestyle.mcp.model.remote.RemoteUploadResponse response = CodestyleClient.uploadTemplateToRemote(
+            CodestyleClient.uploadTemplateToRemote(
                 remote.getBaseUrl(),
                 zipFile,
                 localResult.getGroupId(),
@@ -524,7 +540,7 @@ public class TemplateService {
             
         } finally {
             // 5. 清理临时文件
-            cn.hutool.core.io.FileUtil.del(zipFile);
+            FileUtil.del(zipFile);
         }
     }
 
@@ -536,7 +552,7 @@ public class TemplateService {
      * @throws IOException 文件操作异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalDeleteResult deleteTemplateLocal(String templatePath) 
+    public LocalDeleteResult deleteTemplateLocal(String templatePath) 
         throws IOException {
         
         // 1. 解析路径
@@ -555,13 +571,13 @@ public class TemplateService {
         }
         
         // 4. 删除目录
-        cn.hutool.core.io.FileUtil.del(versionDir.toFile());
+        FileUtil.del(versionDir.toFile());
         
         // 5. 重建索引
         luceneIndexService.rebuildIndex();
         
         // 6. 返回结果
-        top.codestyle.mcp.model.local.LocalDeleteResult result = new top.codestyle.mcp.model.local.LocalDeleteResult();
+        LocalDeleteResult result = new LocalDeleteResult();
         result.setSuccess(true);
         result.setGroupId(groupId);
         result.setArtifactId(artifactId);
@@ -579,15 +595,15 @@ public class TemplateService {
      * @throws IOException 网络异常
      * @throws IllegalArgumentException 参数验证失败
      */
-    public top.codestyle.mcp.model.local.LocalDeleteResult deleteTemplateRemote(String templatePath) 
+    public LocalDeleteResult deleteTemplateRemote(String templatePath) 
         throws IOException {
         
         // 1. 先删除本地
-        top.codestyle.mcp.model.local.LocalDeleteResult localResult = deleteTemplateLocal(templatePath);
+        LocalDeleteResult localResult = deleteTemplateLocal(templatePath);
         
         // 2. 删除远程
         RepositoryConfig.RemoteConfig remote = repositoryConfig.getRemote();
-        top.codestyle.mcp.model.remote.RemoteDeleteResponse response = CodestyleClient.deleteTemplateFromRemote(
+        CodestyleClient.deleteTemplateFromRemote(
             remote.getBaseUrl(),
             localResult.getGroupId(),
             localResult.getArtifactId(),

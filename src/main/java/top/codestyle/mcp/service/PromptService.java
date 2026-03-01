@@ -1,5 +1,6 @@
 package top.codestyle.mcp.service;
 
+import cn.hutool.core.util.StrUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 import top.codestyle.mcp.model.remote.RemoteSearchResult;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -15,7 +17,8 @@ import java.util.regex.Matcher;
 
 /**
  * 提示词模板加载服务
- * 使用懒加载模式从classpath读取提示词模板
+ * <p>使用 DCL（双重检查锁定）懒加载模式从 classpath 读取提示词模板，
+ * 支持多种场景的提示词构建（搜索结果、内容展示、错误提示等）。
  *
  * @author 小航love666, Kanttha, movclantian
  * @since 2025-09-29
@@ -149,8 +152,10 @@ public class PromptService {
             if (!resource.exists()) {
                 throw new IllegalStateException("classpath 下找不到 " + templatePath);
             }
-            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            return content.strip();
+            try (InputStream is = resource.getInputStream()) {
+                String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                return content.strip();
+            }
         } catch (IOException e) {
             throw new IllegalStateException("加载 " + templatePath + " 失败", e);
         }
@@ -251,18 +256,13 @@ public class PromptService {
     }
 
     /**
-     * 统计模板中%{s}占位符的数量
+     * 统计模板中 {@code %{s}} 占位符的数量
      *
      * @param template 模板字符串
      * @return 占位符数量
      */
     private static int countPlaceholder(String template) {
-        int count = 0, idx = 0;
-        while ((idx = template.indexOf("%{s}", idx)) != -1) {
-            count++;
-            idx += 4;
-        }
-        return count;
+        return StrUtil.count(template, "%{s}");
     }
 
     /**
@@ -329,16 +329,16 @@ public class PromptService {
 
     /**
      * 截断描述文本
+     * <p>取第一行并截断到指定长度，超出部分以省略号补充
      *
      * @param desc   描述文本
      * @param maxLen 最大长度
-     * @return 截断后的文本
+     * @return 截断后的文本，输入为空时返回“暂无描述”
      */
     public String truncateDescription(String desc, int maxLen) {
-        if (desc == null || desc.isEmpty()) return "暂无描述";
+        if (StrUtil.isBlank(desc)) return "暂无描述";
         String firstLine = desc.split("\n")[0].trim();
-        if (firstLine.length() <= maxLen) return firstLine;
-        return firstLine.substring(0, maxLen) + "...";
+        return StrUtil.brief(firstLine, maxLen);
     }
 
 }

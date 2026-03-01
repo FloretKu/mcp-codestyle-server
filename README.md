@@ -7,14 +7,14 @@
   
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
   [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
-  [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-green.svg)](https://spring.io/projects/spring-boot)
+  [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.12-green.svg)](https://spring.io/projects/spring-boot)
 </div>
 
 ---
 
 ## 🚀 核心特性
 
-- **MCP 工具**：`codestyleSearch` + `getTemplateByPath`，支持 Cherry Studio、Cursor 等 STDIO 客户端
+- **MCP 工具**：`codestyleSearch` / `getTemplateByPath` / `uploadTemplate` / `uploadTemplateFromFileSystem` / `deleteTemplate`，支持 Cherry Studio、Cursor、TRAE 等 MCP 客户端
 - **Lucene 全文检索**：中文分词（SmartChineseAnalyzer），离线可用
 - **双模式检索**：本地 Lucene（默认） / 远程 Open API（签名认证）
 - **配置验证**：启动时自动验证配置，快速失败
@@ -24,7 +24,7 @@
 ## 📦 技术栈
 
 - Java 17, Maven 3.9+
-- Spring Boot 3.4.3, Spring AI MCP Server 1.1.0
+- Spring Boot 3.4.12, Spring AI MCP Server 2.0.0-M2
 - Apache Lucene 9.12.3, Hutool 5.8.42
 
 ## 🎯 快速开始
@@ -397,7 +397,7 @@ A: 系统会自动降级到本地 Lucene 检索
 
 ## 📝 更新日志
 
-### 最新版本 v2.1.0 (2026-02-24)
+### v2.0.0 (2026-02-24)
 
 **新增功能**：
 - ✅ **模板上传**: 支持从文件系统上传模板到本地/远程仓库
@@ -425,7 +425,7 @@ java -jar codestyle-server.jar upload --path mygroup/MyTemplate/1.0.0 --overwrit
 java -jar codestyle-server.jar delete mygroup/MyTemplate/1.0.0
 ```
 
-### v2.0.0 (2026-02-23)
+### v2.1.0 (2026-02-23)
 
 **重大更新**：
 - ✅ **格式统一**: 统一为单版本格式，与 Skill 标准完全兼容

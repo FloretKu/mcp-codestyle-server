@@ -12,9 +12,9 @@
     </parent>
     <groupId>top.codestyle.mcp</groupId>
     <artifactId>mcp-codestyle-server</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <name>Codestyle Server</name>
-    <description>Code template search and generation tool</description>
+    <description>Code template search and generation MCP tool server</description>
     <properties>
         <!--  Java运行环境。要求JDK版本17+ -->
         <java.version>17</java.version>

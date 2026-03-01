@@ -1,12 +1,11 @@
 package top.codestyle.mcp.util;
 
-import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.json.JSONUtil;
 import top.codestyle.mcp.model.template.TemplateContent;
 import top.codestyle.mcp.model.template.TemplateMetaConfig;
 import top.codestyle.mcp.model.template.TemplateMetaInfo;
-import top.codestyle.mcp.model.template.TemplateVariable;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +14,7 @@ import java.util.List;
 
 /**
  * 元信息转换工具类
- * 提供 TemplateMetaInfo、TemplateMetaConfig 之间的转换
+ * <p>提供 {@link TemplateMetaInfo}、{@link TemplateMetaConfig} 之间的转换
  *
  * @author Kanttha, movclantian
  * @since 2025-10-17
@@ -23,33 +22,17 @@ import java.util.List;
 public class MetaInfoConvertUtil {
 
     /**
-     * 转换 TemplateMetaInfo 为 TemplateContent
+     * 将 {@link TemplateMetaInfo} 转换为 {@link TemplateContent}
      *
-     * @param source 源 TemplateMetaInfo 对象
-     * @return 转换后的 TemplateContent 对象，source为null时返回null
+     * @param source 源对象
+     * @return 转换后的对象，source为null时返回null
      */
     public static TemplateContent convert(TemplateMetaInfo source) {
         if (source == null) {
             return null;
         }
         TemplateContent target = new TemplateContent();
-
-        // 复制基础字段
-        target.setId(source.getId());
-        target.setVersion(source.getVersion());
-        target.setGroupId(source.getGroupId());
-        target.setArtifactId(source.getArtifactId());
-        target.setFilePath(source.getFilePath());
-        target.setDescription(source.getDescription());
-        target.setFilename(source.getFilename());
-        target.setSha256(source.getSha256());
-        target.setPath(source.getPath());
-
-        // 复制变量列表
-        List<TemplateVariable> vars = source.getInputVariables();
-        if (CollUtil.isNotEmpty(vars)) {
-            target.setInputVariables(vars);
-        }
+        BeanUtil.copyProperties(source, target);
         return target;
     }
 
@@ -63,7 +46,6 @@ public class MetaInfoConvertUtil {
     public static List<TemplateMetaInfo> parseMetaJson(File metaFile) throws IOException {
         List<TemplateMetaInfo> result = new ArrayList<>();
 
-        // 解析单版本格式
         TemplateMetaConfig config = JSONUtil.toBean(FileUtil.readUtf8String(metaFile), TemplateMetaConfig.class);
 
         String groupId = config.getGroupId();

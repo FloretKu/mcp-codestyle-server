@@ -6,6 +6,7 @@ import cn.hutool.json.JSONUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.apache.lucene.document.*;
@@ -28,11 +29,15 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Lucene本地索引服务 - 模板索引和检索
+ * Lucene 本地索引服务
+ * <p>负责模板元数据的全文索引构建与检索，支持中文分词（SmartChineseAnalyzer）。
+ * <p>索引数据存储于本地文件系统，采用读写锁保证并发安全，
+ * 并通过定时检查机制自动感知模板仓库变更。
  *
  * @author movclantian
  * @since 2025-12-02
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LuceneIndexService {
@@ -52,7 +57,8 @@ public class LuceneIndexService {
     private volatile long lastIndexBuildTime = 0;
     private volatile int lastMetaFileCount = 0;
     private volatile long lastCheckTime = 0;
-    private static final long CHECK_INTERVAL_MS = 5000; // 检查间隔5秒
+    /** 仓库变更检查间隔（毫秒） */
+    private static final long CHECK_INTERVAL_MS = 5000;
 
     /**
      * 初始化Lucene索引服务
@@ -77,6 +83,9 @@ public class LuceneIndexService {
      */
     @PreDestroy
     public void destroy() throws IOException {
+        if (analyzer != null) {
+            analyzer.close();
+        }
         if (directory != null) {
             directory.close();
         }
@@ -135,8 +144,8 @@ public class LuceneIndexService {
             var desc = readDescription(metaFile.getParentFile(), meta);
             var pathKeywords = extractPathKeywords(meta);
             writer.addDocument(createDoc(meta.getGroupId(), meta.getArtifactId(), desc, pathKeywords, metaFile.getAbsolutePath()));
-        } catch (Exception ignored) {
-            // 单个模板索引失败不影响其他模板
+        } catch (Exception e) {
+            log.warn("索引模板失败 [{}]: {}", metaFile.getAbsolutePath(), e.getMessage());
         }
     }
 
@@ -216,8 +225,8 @@ public class LuceneIndexService {
                 writer.deleteDocuments(new Term(F_PATH, metaPath));
                 writer.addDocument(createDoc(groupId, artifactId, desc, pathKeywords, metaPath));
             }
-        } catch (IOException ignored) {
-            // 索引更新失败不影响主流程
+        } catch (IOException e) {
+            log.debug("索引更新失败: {}", e.getMessage());
         } finally {
             indexLock.writeLock().unlock();
         }
@@ -243,7 +252,8 @@ public class LuceneIndexService {
             if (!DirectoryReader.indexExists(directory)) {
                 rebuildIndex();
             }
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            log.debug("索引状态检查失败: {}", e.getMessage());
         }
 
         indexLock.readLock().lock();
@@ -277,7 +287,7 @@ public class LuceneIndexService {
                     query = parser.parse(queryStr);
                 }
 
-                var topDocs = searcher.search(query, Integer.MAX_VALUE);
+                var topDocs = searcher.search(query, 100);
                 var results = new ArrayList<SearchResult>();
 
                 for (var scoreDoc : topDocs.scoreDocs) {
@@ -291,8 +301,8 @@ public class LuceneIndexService {
                 }
                 return results;
             }
-        } catch (Exception ignored) {
-            // 检索失败返回空列表
+        } catch (Exception e) {
+            log.debug("本地检索失败: {}", e.getMessage());
         } finally {
             indexLock.readLock().unlock();
         }
@@ -340,8 +350,8 @@ public class LuceneIndexService {
             if (hasNewerMetaFiles(baseDir, lastIndexBuildTime)) {
                 rebuildIndex();
             }
-        } catch (Exception ignored) {
-            // 自动重建失败不影响主流程
+        } catch (Exception e) {
+            log.debug("自动重建索引检查失败: {}", e.getMessage());
         }
     }
 

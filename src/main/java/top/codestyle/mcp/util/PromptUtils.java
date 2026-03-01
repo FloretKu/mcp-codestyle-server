@@ -9,7 +9,8 @@ import java.util.Map;
 
 /**
  * 提示词构建工具类
- * 提供目录树构建、变量格式化等功能
+ * <p>提供目录树构建（{@link TreeNode}）、变量信息格式化等功能，
+ * 用于生成 MCP 响应中的结构化文本。
  *
  * @author 小航love666, Kanttha, movclantian
  * @since 2025-09-29

@@ -6,10 +6,12 @@ import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
+import top.codestyle.mcp.model.local.LocalDeleteResult;
+import top.codestyle.mcp.model.local.LocalUploadResult;
+import top.codestyle.mcp.model.template.TemplateContent;
 import top.codestyle.mcp.model.template.TemplateMetaInfo;
 import top.codestyle.mcp.model.remote.RemoteSearchResult;
 import top.codestyle.mcp.model.tree.TreeNode;
-import top.codestyle.mcp.util.CodestyleClient;
 import top.codestyle.mcp.util.PromptUtils;
 
 import java.io.IOException;
@@ -18,7 +20,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 代码模板搜索和内容获取服务
+ * 代码模板 MCP 工具服务
+ * <p>封装面向 AI 大模型的 MCP Tool，提供模板搜索、内容获取、
+ * 上传和删除等工具接口，放在 MCP 协议层与具体业务逻辑之间的编排层。
  *
  * @author 小航love666, Kanttha, movclantian
  * @since 2025-12-03
@@ -63,9 +67,12 @@ public class CodestyleService {
                     RemoteSearchResult result = remoteResults.get(0);
                     
                     // 下载模板
-                    templateService.downloadTemplate(result);
+                    boolean downloaded = templateService.downloadTemplate(result);
+                    if (!downloaded) {
+                        return "远程模板下载失败: " + result.getGroupId() + "/" + result.getArtifactId() + "/" + result.getVersion();
+                    }
 
-                    List<top.codestyle.mcp.model.template.TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
+                    List<TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
                             result.getGroupId(), result.getArtifactId());
                     
                     if (metaInfos.isEmpty()) {
@@ -92,7 +99,12 @@ public class CodestyleService {
     }
 
     /**
-     * 本地Lucene检索（兜底策略）
+     * 本地 Lucene 检索（兜底策略）
+     * <p>当远程检索不可用或返回空结果时，回退到本地全文检索。
+     *
+     * @param templateKeyword    搜索关键词
+     * @param fromRemoteFallback 是否由远程检索降级触发
+     * @return 格式化的检索结果字符串
      */
     private String searchLocalFallback(String templateKeyword, boolean fromRemoteFallback) {
         List<LuceneIndexService.SearchResult> searchResults = luceneIndexService.fetchLocalMetaConfig(templateKeyword);
@@ -116,7 +128,7 @@ public class CodestyleService {
 
         // 单模板结果
         LuceneIndexService.SearchResult searchResult = searchResults.get(0);
-        List<top.codestyle.mcp.model.template.TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
+        List<TemplateMetaInfo> metaInfos = templateService.searchLocalRepository(
                 searchResult.groupId(), searchResult.artifactId());
 
         if (metaInfos.isEmpty()) {
@@ -142,7 +154,7 @@ public class CodestyleService {
             throws IOException {
 
         // 使用精确路径搜索模板
-        top.codestyle.mcp.model.template.TemplateContent matchedTemplate = templateService.searchByPath(templatePath);
+        TemplateContent matchedTemplate = templateService.searchByPath(templatePath);
 
         // 校验搜索结果
         if (matchedTemplate == null) {
@@ -205,7 +217,7 @@ public class CodestyleService {
             // 判断是否启用远程模式
             if (templateService.isRemoteSearchEnabled()) {
                 // 远程模式：上传到远程服务器
-                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                LocalUploadResult result = 
                     templateService.uploadTemplateFromFileSystemRemote(sourcePath, groupId, artifactId, version, shouldOverwrite);
                 
                 return String.format("""
@@ -223,7 +235,7 @@ public class CodestyleService {
                 );
             } else {
                 // 本地模式：只保存到本地
-                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                LocalUploadResult result = 
                     templateService.saveTemplateFromFileSystemLocal(sourcePath, groupId, artifactId, version, shouldOverwrite);
                 
                 return String.format("""
@@ -238,10 +250,6 @@ public class CodestyleService {
                     result.getFileCount()
                 );
             }
-        } catch (IllegalArgumentException e) {
-            return "✗ 上传失败: " + e.getMessage();
-        } catch (IOException e) {
-            return "✗ 上传失败: " + e.getMessage();
         } catch (Exception e) {
             return "✗ 上传失败: " + e.getMessage();
         }
@@ -272,7 +280,7 @@ public class CodestyleService {
             // 判断是否启用远程模式
             if (templateService.isRemoteSearchEnabled()) {
                 // 远程模式：上传到远程服务器
-                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                LocalUploadResult result = 
                     templateService.uploadTemplateRemote(templatePath, shouldOverwrite);
                 
                 return String.format("""
@@ -288,7 +296,7 @@ public class CodestyleService {
                 );
             } else {
                 // 本地模式：只保存到本地
-                top.codestyle.mcp.model.local.LocalUploadResult result = 
+                LocalUploadResult result = 
                     templateService.saveTemplateLocal(templatePath, shouldOverwrite);
                 
                 return String.format("""
@@ -301,10 +309,6 @@ public class CodestyleService {
                     result.getFileCount()
                 );
             }
-        } catch (IllegalArgumentException e) {
-            return "✗ 上传失败: " + e.getMessage();
-        } catch (IOException e) {
-            return "✗ 上传失败: " + e.getMessage();
         } catch (Exception e) {
             return "✗ 上传失败: " + e.getMessage();
         }
@@ -330,7 +334,7 @@ public class CodestyleService {
             // 判断是否启用远程模式
             if (templateService.isRemoteSearchEnabled()) {
                 // 远程模式：删除远程模板
-                top.codestyle.mcp.model.local.LocalDeleteResult result = 
+                LocalDeleteResult result = 
                     templateService.deleteTemplateRemote(templatePath);
                 
                 return String.format("""
@@ -344,7 +348,7 @@ public class CodestyleService {
                 );
             } else {
                 // 本地模式：只删除本地
-                top.codestyle.mcp.model.local.LocalDeleteResult result = 
+                LocalDeleteResult result = 
                     templateService.deleteTemplateLocal(templatePath);
                 
                 return String.format("""
@@ -355,10 +359,6 @@ public class CodestyleService {
                     result.getGroupId(), result.getArtifactId(), result.getVersion()
                 );
             }
-        } catch (IllegalArgumentException e) {
-            return "✗ 删除失败: " + e.getMessage();
-        } catch (IOException e) {
-            return "✗ 删除失败: " + e.getMessage();
         } catch (Exception e) {
             return "✗ 删除失败: " + e.getMessage();
         }

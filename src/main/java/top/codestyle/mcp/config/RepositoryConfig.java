@@ -1,11 +1,10 @@
 package top.codestyle.mcp.config;
 
+import cn.hutool.core.io.FileUtil;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import top.codestyle.mcp.util.CodestyleClient;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -14,12 +13,14 @@ import java.nio.file.Paths;
 
 /**
  * 仓库配置类
- * 管理仓库路径和远程检索配置
- * 
- * 配置优先级（从高到低）：
- * 1. 环境变量: CODESTYLE_CACHE_PATH, CODESTYLE_REMOTE_ENABLED
- * 2. cfg.json: 所有配置字段
- * 3. application.yml: 默认值
+ * <p>管理本地仓库路径和远程检索配置。
+ *
+ * <p>配置优先级（从高到低）：
+ * <ol>
+ *   <li>环境变量: {@code CODESTYLE_CACHE_PATH}, {@code CODESTYLE_REMOTE_ENABLED}</li>
+ *   <li>cfg.json: 所有配置字段</li>
+ *   <li>application.yml: 默认值</li>
+ * </ol>
  *
  * @author CodeStyle Team
  * @since 2.0.0
@@ -95,7 +96,7 @@ public class RepositoryConfig {
     @Bean
     public Path repositoryDirectory() {
         try {
-            String normalizedRepoDir = CodestyleClient.normalizePath(getRepositoryDir());
+            String normalizedRepoDir = FileUtil.normalize(getRepositoryDir());
             Path repoPath = Paths.get(normalizedRepoDir);
 
             if (!Files.exists(repoPath)) {
