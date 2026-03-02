@@ -58,7 +58,7 @@ public class RefactoringTest {
 
         try {
             Path metaPath = Paths.get(CACHE_PATH, "continew", "CRUD", "1.0.0", "meta.json");
-            
+
             if (!Files.exists(metaPath)) {
                 fail("meta.json 文件不存在: " + metaPath);
                 return;
@@ -112,7 +112,7 @@ public class RefactoringTest {
 
         try {
             List<TemplateMetaInfo> results = CodestyleClient.searchLocalRepository(
-                "continew", "CRUD", CACHE_PATH);
+                    "continew", "CRUD", CACHE_PATH);
 
             if (results.isEmpty()) {
                 fail("搜索结果为空");
@@ -146,7 +146,7 @@ public class RefactoringTest {
 
         try {
             String testPath = "continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller/Controller.ftl";
-            
+
             TemplateMetaInfo result = CodestyleClient.searchByPath(testPath, CACHE_PATH);
 
             if (result == null) {
@@ -181,7 +181,7 @@ public class RefactoringTest {
 
         try {
             List<TemplateMetaInfo> results = CodestyleClient.searchLocalRepository(
-                "continew", "CRUD", CACHE_PATH);
+                    "continew", "CRUD", CACHE_PATH);
 
             if (results.isEmpty()) {
                 fail("搜索结果为空");
@@ -193,11 +193,11 @@ public class RefactoringTest {
 
             for (TemplateMetaInfo info : results) {
                 Path templatePath = Paths.get(CACHE_PATH,
-                    info.getGroupId(),
-                    info.getArtifactId(),
-                    info.getVersion(),
-                    info.getFilePath(),
-                    info.getFilename());
+                        info.getGroupId(),
+                        info.getArtifactId(),
+                        info.getVersion(),
+                        info.getFilePath(),
+                        info.getFilename());
 
                 if (Files.exists(templatePath)) {
                     existsCount++;
@@ -235,9 +235,9 @@ public class RefactoringTest {
             String path2 = "continew\\CRUD\\1.0.0";
             String path3 = "continew//CRUD//1.0.0";
 
-            String normalized1 = CodestyleClient.normalizePath(path1);
-            String normalized2 = CodestyleClient.normalizePath(path2);
-            String normalized3 = CodestyleClient.normalizePath(path3);
+            String normalized1 = cn.hutool.core.io.FileUtil.normalize(path1);
+            String normalized2 = cn.hutool.core.io.FileUtil.normalize(path2);
+            String normalized3 = cn.hutool.core.io.FileUtil.normalize(path3);
 
             if (!normalized1.equals(normalized2) || !normalized2.equals(normalized3)) {
                 fail("路径规范化不一致");
@@ -269,10 +269,10 @@ public class RefactoringTest {
             // 创建 2.0.0 版本用于测试
             Path v2Path = Paths.get(CACHE_PATH, "continew", "CRUD", "2.0.0");
             Path v1MetaPath = Paths.get(CACHE_PATH, "continew", "CRUD", "1.0.0", "meta.json");
-            
+
             if (!Files.exists(v2Path)) {
                 Files.createDirectories(v2Path);
-                
+
                 // 复制 meta.json 并修改版本号
                 String metaContent = Files.readString(v1MetaPath);
                 metaContent = metaContent.replace("\"version\": \"1.0.0\"", "\"version\": \"2.0.0\"");
@@ -281,7 +281,7 @@ public class RefactoringTest {
 
             // 搜索应该返回最新版本（2.0.0）
             List<TemplateMetaInfo> results = CodestyleClient.searchLocalRepository(
-                "continew", "CRUD", CACHE_PATH);
+                    "continew", "CRUD", CACHE_PATH);
 
             if (results.isEmpty()) {
                 fail("搜索结果为空");
@@ -348,8 +348,8 @@ public class RefactoringTest {
         System.out.println("总测试数: " + (passedTests + failedTests));
         System.out.println("通过: " + passedTests);
         System.out.println("失败: " + failedTests);
-        System.out.println("通过率: " + String.format("%.1f%%", 
-            (passedTests * 100.0 / (passedTests + failedTests))));
+        System.out.println("通过率: " + String.format("%.1f%%",
+                (passedTests * 100.0 / (passedTests + failedTests))));
         System.out.println("=".repeat(80));
 
         if (failedTests == 0) {
@@ -359,4 +359,3 @@ public class RefactoringTest {
         }
     }
 }
-

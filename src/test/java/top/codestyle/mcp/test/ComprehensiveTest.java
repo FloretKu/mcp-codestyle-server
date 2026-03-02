@@ -165,7 +165,7 @@ public class ComprehensiveTest {
 
         try {
             Path metaPath = Paths.get(CACHE_PATH, "continew", "CRUD", "1.0.0", "meta.json");
-            
+
             // 使用 MetaInfoConvertUtil 解析
             List<TemplateMetaInfo> metaInfos = MetaInfoConvertUtil.parseMetaJson(metaPath.toFile());
 
@@ -221,7 +221,7 @@ public class ComprehensiveTest {
 
         try {
             List<TemplateMetaInfo> results = CodestyleClient.searchLocalRepository(
-                "continew", "CRUD", CACHE_PATH);
+                    "continew", "CRUD", CACHE_PATH);
 
             if (results.isEmpty()) {
                 fail("搜索结果为空");
@@ -256,9 +256,9 @@ public class ComprehensiveTest {
         try {
             // 测试多个路径
             String[] testPaths = {
-                "continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller/Controller.ftl",
-                "continew/CRUD/1.0.0/bankend/src/main/java/com/air/service/Service.ftl",
-                "continew/CRUD/1.0.0/frontend/src/api/api.ftl"
+                    "continew/CRUD/1.0.0/bankend/src/main/java/com/air/controller/Controller.ftl",
+                    "continew/CRUD/1.0.0/bankend/src/main/java/com/air/service/Service.ftl",
+                    "continew/CRUD/1.0.0/frontend/src/api/api.ftl"
             };
 
             int successCount = 0;
@@ -296,7 +296,7 @@ public class ComprehensiveTest {
 
         try {
             List<TemplateMetaInfo> results = CodestyleClient.searchLocalRepository(
-                "continew", "CRUD", CACHE_PATH);
+                    "continew", "CRUD", CACHE_PATH);
 
             if (results.isEmpty()) {
                 fail("搜索结果为空");
@@ -308,11 +308,11 @@ public class ComprehensiveTest {
 
             for (TemplateMetaInfo info : results) {
                 Path templatePath = Paths.get(CACHE_PATH,
-                    info.getGroupId(),
-                    info.getArtifactId(),
-                    info.getVersion(),
-                    info.getFilePath(),
-                    info.getFilename());
+                        info.getGroupId(),
+                        info.getArtifactId(),
+                        info.getVersion(),
+                        info.getFilePath(),
+                        info.getFilename());
 
                 if (Files.exists(templatePath)) {
                     existsCount++;
@@ -347,15 +347,15 @@ public class ComprehensiveTest {
         try {
             // 测试不同格式的路径
             String[][] testCases = {
-                {"continew/CRUD/1.0.0", "continew\\CRUD\\1.0.0"},
-                {"continew//CRUD//1.0.0", "continew\\\\CRUD\\\\1.0.0"},
-                {"/continew/CRUD/1.0.0", "\\continew\\CRUD\\1.0.0"}
+                    { "continew/CRUD/1.0.0", "continew\\CRUD\\1.0.0" },
+                    { "continew//CRUD//1.0.0", "continew\\\\CRUD\\\\1.0.0" },
+                    { "/continew/CRUD/1.0.0", "\\continew\\CRUD\\1.0.0" }
             };
 
             boolean allPassed = true;
             for (String[] testCase : testCases) {
-                String normalized1 = CodestyleClient.normalizePath(testCase[0]);
-                String normalized2 = CodestyleClient.normalizePath(testCase[1]);
+                String normalized1 = cn.hutool.core.io.FileUtil.normalize(testCase[0]);
+                String normalized2 = cn.hutool.core.io.FileUtil.normalize(testCase[1]);
 
                 if (!normalized1.equals(normalized2)) {
                     System.out.println("  ✗ 不一致: " + testCase[0] + " vs " + testCase[1]);
@@ -426,7 +426,7 @@ public class ComprehensiveTest {
             luceneService.init();
 
             // 测试搜索
-            String[] keywords = {"CRUD", "Controller", "continew/CRUD"};
+            String[] keywords = { "CRUD", "Controller", "continew/CRUD" };
             int successCount = 0;
 
             for (String keyword : keywords) {
@@ -524,12 +524,12 @@ public class ComprehensiveTest {
         System.out.println("总测试数: " + (passedTests + failedTests));
         System.out.println("通过: " + passedTests);
         System.out.println("失败: " + failedTests);
-        
+
         if (passedTests + failedTests > 0) {
-            System.out.println("通过率: " + String.format("%.1f%%", 
-                (passedTests * 100.0 / (passedTests + failedTests))));
+            System.out.println("通过率: " + String.format("%.1f%%",
+                    (passedTests * 100.0 / (passedTests + failedTests))));
         }
-        
+
         System.out.println("=".repeat(80));
 
         if (failedTests == 0) {
@@ -540,4 +540,3 @@ public class ComprehensiveTest {
         }
     }
 }
-
