@@ -18,17 +18,31 @@ logging:
   level:
     root: OFF
 
-# 仓库配置
+# 沙盒执行配置（对应 SandboxVerificationService）。
+# 优先级：JVM 系统属性 > 环境变量 > 本文件 > 代码默认值。
+sandbox:
+  mode: ${CODESTYLE_SANDBOX_MODE:local}
+  docker:
+    image: ${CODESTYLE_SANDBOX_DOCKER_IMAGE:maven:3.9.9-eclipse-temurin-17}
+    workdir: ${CODESTYLE_SANDBOX_DOCKER_WORKDIR:/workspace}
+    memory: ${CODESTYLE_SANDBOX_DOCKER_MEMORY:1g}
+    cpus: ${CODESTYLE_SANDBOX_DOCKER_CPUS:1.0}
+    # 默认允许联网，避免首次拉取依赖时直接失败。
+    network-none: ${CODESTYLE_SANDBOX_DOCKER_NETWORK_NONE:false}
+    # 若路径存在，则将宿主机 Maven 仓库缓存以只读方式挂载。
+    mount-m2: ${CODESTYLE_SANDBOX_DOCKER_MOUNT_M2:true}
+    m2-host-path: ${CODESTYLE_SANDBOX_DOCKER_M2_HOST_PATH:${user.home}/.m2/repository}
+    m2-container-path: ${CODESTYLE_SANDBOX_DOCKER_M2_CONTAINER_PATH:/var/maven/repository}
+    # 在非 Windows 环境中，将容器用户映射为当前宿主机 uid:gid。
+    map-host-user: ${CODESTYLE_SANDBOX_DOCKER_MAP_HOST_USER:true}
+    # Docker 不可用或初始化失败时，自动回退到本地模式。
+    fallback-local: ${CODESTYLE_SANDBOX_DOCKER_FALLBACK_LOCAL:true}
+
+# 仓库配置。
 repository:
-  # 本地缓存路径（环境变量优先）
   local-path: ${CODESTYLE_CACHE_PATH:~/.codestyle/cache}
-  
-  # 远程检索配置
   remote:
-    # 是否启用远程检索（环境变量优先）
     enabled: ${CODESTYLE_REMOTE_ENABLED:false}
-    
-    # 以下配置从 cfg.json 读取，这里提供默认值
     base-url: ${repository.remote.base-url:http://localhost:8000}
     access-key: ${repository.remote.access-key:}
     secret-key: ${repository.remote.secret-key:}
