@@ -359,7 +359,6 @@ public class SandboxVerificationService {
         String effectiveCommand = enforceMavenOfflineIfNeeded(command, config);
         DockerClient dockerClient = DockerClientFactory.instance().client();
         List<String> env = buildExecEnv(effectiveCommand, config, m2Mounted);
-        String[] envArray = env.toArray(String[]::new);
 
         LimitedByteArrayOutputStream stdout = new LimitedByteArrayOutputStream(MAX_OUTPUT_CHARS * 4);
         LimitedByteArrayOutputStream stderr = new LimitedByteArrayOutputStream(MAX_OUTPUT_CHARS * 4);
@@ -370,7 +369,7 @@ public class SandboxVerificationService {
                     .withAttachStdout(true)
                     .withAttachStderr(true)
                     .withCmd("sh", "-lc", effectiveCommand)
-                    .withEnv(envArray)
+                    .withEnv(env)
                     .exec();
 
             boolean finished = dockerClient.execStartCmd(execCreate.getId())
