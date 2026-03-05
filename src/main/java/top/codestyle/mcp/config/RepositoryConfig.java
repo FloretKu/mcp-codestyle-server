@@ -2,6 +2,7 @@ package top.codestyle.mcp.config;
 
 import cn.hutool.core.io.FileUtil;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +26,7 @@ import java.nio.file.Paths;
  * @author CodeStyle Team
  * @since 2.0.0
  */
+@Slf4j
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "repository")
@@ -95,6 +97,15 @@ public class RepositoryConfig {
      */
     @Bean
     public Path repositoryDirectory() {
+        log.info("=== 实际生效的配置 ===");
+        log.info("localPath: {}", localPath);
+        log.info("remote.enabled: {}", remote.enabled);
+        log.info("remote.baseUrl: {}", remote.baseUrl);
+        log.info("remote.accessKey: {}", remote.accessKey != null ? "已配置(" + remote.accessKey + ")" : "未配置");
+        log.info("remote.secretKey: {}", remote.secretKey != null ? "已配置" : "未配置");
+        log.info("remote.timeoutMs: {}", remote.timeoutMs);
+        log.info("=====================");
+        
         try {
             String normalizedRepoDir = FileUtil.normalize(getRepositoryDir());
             Path repoPath = Paths.get(normalizedRepoDir);
