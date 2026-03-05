@@ -10,6 +10,7 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,11 +24,19 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         Map<String, Object> properties = new HashMap<>();
 
+        // 优先级从低到高：classpath(jar内) < jar同目录 < 项目根目录
+        // 后加载的会覆盖前面的，实现优先级从低到高
+        
+        // 1. 从 classpath 读取（IDE 和 jar 打包都支持，优先级最低）
+        loadConfigFromClasspath(properties);
+
+        // 2. jar 包同目录
         File globalCfg = findGlobalCfgJson();
         if (globalCfg != null && globalCfg.exists()) {
             loadConfig(globalCfg, properties);
         }
 
+        // 3. 项目根目录 .codestyle/（优先级最高）
         File projectCfg = findProjectCfgJson();
         if (projectCfg != null && projectCfg.exists()) {
             loadConfig(projectCfg, properties);
@@ -43,57 +52,66 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
         }
     }
 
+    private void loadConfigFromClasspath(Map<String, Object> properties) {
+        try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(CFG_JSON)) {
+            if (inputStream == null) {
+                return;
+            }
+            String content = new String(inputStream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            parseConfigJson(properties, content, null);
+        } catch (Exception e) {
+            throw new RuntimeException("从 classpath 加载 cfg.json 失败", e);
+        }
+    }
+
     private void loadConfig(File cfgFile, Map<String, Object> properties) {
         try {
             String content = FileUtil.readUtf8String(cfgFile);
-            JSONObject json = JSONUtil.parseObj(content);
-
-            JSONObject repository = json.getJSONObject("repository");
-            if (repository != null) {
-                File baseDir = cfgFile.getParentFile();
-
-                // local-path
-                String localPath = repository.getStr("local-path");
-                if (localPath != null) {
-                    properties.put("repository.local-path", resolvePath(baseDir, localPath));
-                }
-
-                // remote 配置
-                JSONObject remote = repository.getJSONObject("remote");
-                if (remote != null) {
-                    // enabled
-                    Boolean enabled = remote.getBool("enabled");
-                    if (enabled != null) {
-                        properties.put("repository.remote.enabled", enabled);
-                    }
-
-                    // base-url
-                    String baseUrl = remote.getStr("base-url");
-                    if (baseUrl != null) {
-                        properties.put("repository.remote.base-url", baseUrl);
-                    }
-
-                    // access-key
-                    String accessKey = remote.getStr("access-key");
-                    if (accessKey != null) {
-                        properties.put("repository.remote.access-key", accessKey);
-                    }
-
-                    // secret-key
-                    String secretKey = remote.getStr("secret-key");
-                    if (secretKey != null) {
-                        properties.put("repository.remote.secret-key", secretKey);
-                    }
-
-                    // timeout-ms
-                    Integer timeoutMs = remote.getInt("timeout-ms");
-                    if (timeoutMs != null) {
-                        properties.put("repository.remote.timeout-ms", timeoutMs);
-                    }
-                }
-            }
+            parseConfigJson(properties, content, cfgFile.getParentFile());
         } catch (Exception e) {
             throw new RuntimeException("cfg.json 解析失败: " + cfgFile.getAbsolutePath(), e);
+        }
+    }
+
+    private void parseConfigJson(Map<String, Object> properties, String content, File baseDir) {
+        JSONObject json = JSONUtil.parseObj(content);
+
+        JSONObject repository = json.getJSONObject("repository");
+        if (repository != null) {
+            // local-path
+            String localPath = repository.getStr("local-path");
+            if (localPath != null) {
+                String resolvedPath = (baseDir != null) ? resolvePath(baseDir, localPath) : localPath;
+                properties.put("repository.local-path", resolvedPath);
+            }
+            // remote 配置
+            JSONObject remote = repository.getJSONObject("remote");
+            if (remote != null) {
+                Boolean enabled = remote.getBool("enabled");
+                if (enabled != null) {
+                    properties.put("repository.remote.enabled", enabled);
+                }
+                // base-url
+                String baseUrl = remote.getStr("base-url");
+                if (baseUrl != null) {
+                    properties.put("repository.remote.base-url", baseUrl);
+                }
+                // access-key
+                String accessKey = remote.getStr("access-key");
+                if (accessKey != null) {
+                    properties.put("repository.remote.access-key", accessKey);
+                }
+                // secret-key
+                String secretKey = remote.getStr("secret-key");
+                if (secretKey != null) {
+                    properties.put("repository.remote.secret-key", secretKey);
+                }
+                // timeout-ms
+                Integer timeoutMs = remote.getInt("timeout-ms");
+                if (timeoutMs != null) {
+                    properties.put("repository.remote.timeout-ms", timeoutMs);
+                }
+            }
         }
     }
 
