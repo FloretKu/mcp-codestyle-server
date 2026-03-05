@@ -1,0 +1,99 @@
+name: Build JAR
+
+# 触发条件：main 分支有 push 时（排除只修改 JAR 文件的提交）
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'skill/codestyle/scripts/codestyle-server.jar'
+      - '**.md'
+      - 'img/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit-jar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # 获取完整历史，用于检测源代码变更
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build JAR with Maven
+        run: mvn clean package -DskipTests -B
+
+      - name: Verify JAR was created
+        run: |
+          if [ ! -f "target/codestyle-server.jar" ]; then
+            echo "❌ JAR file not found!"
+            exit 1
+          fi
+          echo "✓ JAR file created"
+          ls -lh target/codestyle-server.jar
+
+      - name: Copy JAR to scripts directory
+        run: |
+          cp target/codestyle-server.jar skill/codestyle/scripts/codestyle-server.jar
+          echo "✓ Copied JAR to skill/codestyle/scripts/"
+
+      - name: Get JAR info
+        id: jar_info
+        run: |
+          JAR_SIZE=$(du -h skill/codestyle/scripts/codestyle-server.jar | cut -f1)
+          echo "size=$JAR_SIZE" >> $GITHUB_OUTPUT
+          echo "✓ JAR size: $JAR_SIZE"
+
+      - name: Ensure target directory is ignored
+        run: |
+          echo "🔒 Safety check: Verifying target directory is ignored..."
+          if [ -d "target" ]; then
+            git check-ignore -q target/ && echo "✓ target/ is ignored" || echo "⚠️  WARNING: target/ is NOT ignored!"
+          fi
+          # 强制确保 target 目录不会被 git 跟踪
+          rm -rf target/
+          echo "✓ Cleaned target directory for safety"
+
+      - name: Commit and push JAR
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 只添加 JAR 文件，明确排除 target
+          git add skill/codestyle/scripts/codestyle-server.jar
+
+          # 再次检查暂存区，确保没有 target 相关文件
+          if git status --short | grep -q "target"; then
+            echo "❌ ERROR: target files detected in staging area!"
+            git status --short
+            exit 1
+          fi
+          echo "✓ Verified: No target files in staging area"
+
+          # 检查是否有变更
+          if git diff --cached --quiet; then
+            echo "ℹ️  No changes to JAR, skipping commit"
+          else
+            git commit -m "chore: update JAR in scripts directory (${{ steps.jar_info.outputs.size }}) [skip ci]"
+            git push
+            echo "✓ JAR updated and pushed"
+          fi
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## ✅ Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **JAR Location**: \`skill/codestyle/scripts/codestyle-server.jar\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: ${{ steps.jar_info.outputs.size }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})" >> $GITHUB_STEP_SUMMARY

@@ -1,4 +1,7 @@
-*.jar
+# Allow codestyle-server.jar (managed by GitHub Actions)
+!codestyle-server.jar
+
+# Ignore other JAR files
 *.jar.original
 *.jar.backup
 .cfg_initialized
