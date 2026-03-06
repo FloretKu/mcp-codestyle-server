@@ -14,7 +14,7 @@
 
 ## 🚀 核心特性
 
-- **MCP 工具**：`codestyleSearch` / `getTemplateByPath` / `uploadTemplate` / `uploadTemplateFromFileSystem` / `deleteTemplate`，支持 Cherry Studio、Cursor、TRAE 等 MCP 客户端
+- **MCP 工具**：`codestyleSearch` / `getTemplateByPath` / `uploadTemplate` / `uploadTemplateFromFileSystem` / `deleteTemplate` / `extractProjectSkeleton` / `exploreCodeContext`，支持 Cherry Studio、Cursor、TRAE 等 MCP 客户端
 - **Lucene 全文检索**：中文分词（SmartChineseAnalyzer），离线可用
 - **双模式检索**：本地 Lucene（默认） / 远程 Open API（签名认证）
 - **配置验证**：启动时自动验证配置，快速失败
@@ -188,6 +188,16 @@ repository:
 | `CODESTYLE_CACHE_PATH` | 本地缓存路径 | `./mcp-cache` | 不同环境使用不同的缓存目录 |
 | `CODESTYLE_REMOTE_ENABLED` | 是否启用远程检索 | `false` | 开发环境关闭，生产环境开启 |
 
+**骨架与图相关配置**（`codestyle.*`，可选）：
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `codestyle.skeleton.max-file-size-bytes` | 单文件解析体积上限 | 1048576 (1MB) |
+| `codestyle.skeleton.max-files-per-project` | 单项目最大解析文件数 | 5000 |
+| `codestyle.skeleton.max-directory-depth` | 最大目录深度 | 15 |
+| `codestyle.scoring.alpha/beta/gamma/delta` | PageRank/入度/复杂度/深度权重 | 0.45/0.25/0.15/0.15 |
+| `codestyle.cache.skeleton-ttl-ms` | 骨架缓存 TTL（毫秒） | 3600000 (1 小时) |
+
 **注意**: 其他配置（base-url, access-key, secret-key, timeout-ms）建议在 `application.yml` 中直接配置，或使用 Spring Profile 管理不同环境的配置。
 
 ### 配置管理最佳实践
@@ -304,6 +314,34 @@ java -jar codestyle-server.jar --spring.profiles.active=prod
   - 本地路径: ~/.codestyle/cache/mygroup/MyTemplate/1.0.0
   - 文件数: 3
   - 索引已更新
+```
+
+### extractProjectSkeleton
+
+对指定项目目录执行多语言 AST 深度解析，构建层级代码树 (HCT) 与多类型依赖图 (MDG)，通过 PageRank + 复合评分智能剪枝，以 **Markdown+XML** 混合格式返回精简骨架。支持 Java、Python、JavaScript、TypeScript、Go。
+
+```
+输入:
+  - projectPath: 项目目录绝对路径
+  - detailLevel: 1=目录概览, 2=类骨架(推荐), 3=方法签名+docstring, 4=完整
+  - focusPath: 可选，聚焦子目录（如 src/main），仅解析该目录
+
+输出: Markdown + <directory_tree> / <ast_skeleton> / <dependency_graph> 混合文档
+```
+
+### exploreCodeContext
+
+基于已解析的骨架与依赖图，按意图检索精准代码上下文。**需先对同一 projectPath 调用 extractProjectSkeleton**。
+
+```
+输入:
+  - projectPath: 项目目录绝对路径
+  - mode: expand（展开实现）/ trace（上下游调用链）/ search（按名称搜索）
+  - query: 文件路径、类名、方法名或关键词
+  - direction: trace 时 upstream / downstream / both
+  - maxDepth: 最大遍历深度（默认 3）
+
+输出: <expanded_context> / <trace_result> / <search_result> 等
 ```
 
 ### deleteTemplate
