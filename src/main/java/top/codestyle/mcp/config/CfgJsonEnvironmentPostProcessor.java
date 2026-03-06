@@ -19,6 +19,8 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
     private static final String CFG_JSON = "cfg.json";
     private static final String PROJECT_CFG_DIR = ".codestyle";
     private static final String PROPERTY_SOURCE_NAME = "cfgJsonPropertySource";
+    private static final String SYSTEM_ENVIRONMENT = "systemEnvironment";
+    private static final String SYSTEM_PROPERTIES = "systemProperties";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -48,7 +50,14 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
                 sources.remove(PROPERTY_SOURCE_NAME);
             }
             MapPropertySource propertySource = new MapPropertySource(PROPERTY_SOURCE_NAME, properties);
-            sources.addFirst(propertySource);
+            // 让环境变量/系统属性优先于 cfg.json（符合文档优先级：env > cfg.json > application.yml）
+            if (sources.contains(SYSTEM_ENVIRONMENT)) {
+                sources.addAfter(SYSTEM_ENVIRONMENT, propertySource);
+            } else if (sources.contains(SYSTEM_PROPERTIES)) {
+                sources.addAfter(SYSTEM_PROPERTIES, propertySource);
+            } else {
+                sources.addLast(propertySource);
+            }
         }
     }
 
@@ -81,7 +90,7 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
             // local-path
             String localPath = repository.getStr("local-path");
             if (localPath != null) {
-                String resolvedPath = (baseDir != null) ? resolvePath(baseDir, localPath) : localPath;
+                String resolvedPath = resolvePath(baseDir, localPath);
                 properties.put("repository.local-path", resolvedPath);
             }
             // remote 配置
@@ -144,14 +153,23 @@ public class CfgJsonEnvironmentPostProcessor implements EnvironmentPostProcessor
         if (path == null || path.isEmpty()) {
             return path;
         }
-        if (path.startsWith("~")) {
-            String userHome = System.getProperty("user.home");
-            path = new File(userHome, path.substring(2)).getAbsolutePath();
+        File effectiveBaseDir = (baseDir != null) ? baseDir : new File(System.getProperty("user.dir"));
+
+        // 展开 "~"（兼容 Windows：若不展开，"~/.xxx" 可能会被当成字面目录名 "~"）
+        String trimmed = path.trim();
+        if ("~".equals(trimmed)) {
+            path = System.getProperty("user.home");
+        } else if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+            path = new File(System.getProperty("user.home"), trimmed.substring(2)).getAbsolutePath();
+        } else if (trimmed.startsWith("~")) {
+            // 容错：如 "~abc" 这类非法写法，按字面处理，不做展开
+            path = trimmed;
         }
+
         File file = new File(path);
         if (file.isAbsolute()) {
             return file.getAbsolutePath();
         }
-        return new File(baseDir, path).getAbsolutePath();
+        return new File(effectiveBaseDir, path).getAbsolutePath();
     }
 }
