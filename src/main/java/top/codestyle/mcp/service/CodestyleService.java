@@ -260,7 +260,11 @@ public class CodestyleService {
                         result.getFileCount());
             }
         } catch (Exception e) {
-            return "✗ 上传失败: " + e.getMessage();
+            String message = e.getMessage();
+            if (message != null && message.contains("模板路径格式错误")) {
+                message = message + "，请传入仓库相对路径，例如: continew/CRUD/1.0.0（不要包含 codestyle-cache 前缀）";
+            }
+            return "✗ 上传失败: " + message;
         }
     }
 

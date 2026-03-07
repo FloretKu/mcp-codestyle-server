@@ -476,9 +476,21 @@ public class CodestyleClient {
         if (templatePath == null || templatePath.isEmpty()) {
             throw new IllegalArgumentException("模板路径不能为空");
         }
-        
+
         String normalized = FileUtil.normalize(templatePath);
         String[] parts = normalized.split(Pattern.quote(File.separator));
+        if (parts.length == 1){
+            log.warn("尝试使用 / 分割路径");
+            parts = normalized.split("/");
+        }
+        // 如果分割后不是3个，尝试从完整路径中提取最后3个部分
+        if (parts.length > 3) {
+            parts = new String[] {
+                parts[parts.length - 3],
+                parts[parts.length - 2],
+                parts[parts.length - 1]
+            };
+        }
         
         if (parts.length != 3) {
             throw new IllegalArgumentException(
